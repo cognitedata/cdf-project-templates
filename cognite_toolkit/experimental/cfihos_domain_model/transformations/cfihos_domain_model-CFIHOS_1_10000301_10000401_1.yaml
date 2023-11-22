@@ -1,0 +1,23 @@
+name: cfihos_domain_model-CFIHOS_1_10000301_10000401_1
+externalId: cfihos_domain_model-CFIHOS_1_10000301_10000401_1
+query: cfihos_domain_model-CFIHOS_1_10000301_10000401_1.sql
+destination:
+  dataModel:
+    destinationType: CFIHOS_1_10000301_10000401_1
+    externalId: cfihos_domain_model
+    space: cfihos_domain_model
+    version: 1
+  instanceSpace: cfihos_domain_model
+  type: instances
+
+action: upsert
+shared: true
+ignoreNullFields: true
+
+authentication:
+  audience: ''
+  cdfProjectName: '#{cdfProjectName}#'
+  clientId: '#{cdf-automation-client-id}#'
+  clientSecret: '#{cdf-automation-client-secret}#'
+  scopes: '#{adscope}#'
+  tokenUri: '#{tokenUrl}#'

@@ -1,0 +1,157 @@
+source_raw_database,source_raw_table,source_raw_property,source_property_description,target_type,target_property,target_property_data_type,target_property_description,transformation_formula,is_direct_relation,target_data_model,target_instance_space,target_type_version,target_data_model_version,source_data_model,source_type,source_type_version,source_property,source_instance_space
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000001,String,area code,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000001_rel,JSONObject,area code,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000005,String,plant code,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000005_rel,JSONObject,plant code,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000028,Boolean,safety critical item,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000036,Boolean,manufacturer,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000040,String,tag class name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000040_rel,JSONObject,tag class name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000084,String,project name,CASE WHEN `Facility` = 'A' THEN 'Munin' WHEN `Facility` = 'C' THEN 'Sentral Template' WHEN `Facility` = 'D' THEN 'Hugin A' WHEN `Facility` = 'E' THEN 'Rind' WHEN `Facility` = 'F' THEN 'Fulla & Lillefrigg' WHEN `Facility` = 'G' THEN 'Hugin B NUI' WHEN `Facility` = 'N' THEN 'Langfjellet North' WHEN `Facility` = 'S' THEN 'Langfjellet South' WHEN `Facility` = 'P' THEN 'Børdalen Transformer station' WHEN `Facility` = 'Q' THEN 'Årskog compensation station' WHEN `Facility` = 'O' THEN 'Integrated Operations centre Centre' WHEN `Facility` = 'U' THEN 'Export lines' WHEN `Facility` = 'V' THEN 'Askja A template' WHEN `Facility` = 'W' THEN 'Askja B template' WHEN `Facility` = 'X' THEN 'Electrical transmission lines' WHEN `Facility` = 'Y' THEN 'Krafla B Template' WHEN `Facility` = 'Z' THEN 'Krafla A Template' END,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,CFIHOS_10000084_rel,JSONObject,project name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_1_10000001_10000101_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000001_10000101_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000128,String,purchase order number,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000128_rel,JSONObject,purchase order number,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000157,String,process unit code,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000157_rel,JSONObject,process unit code,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000158,String,manufacturer company name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000158_rel,JSONObject,manufacturer company name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000159,String,model part name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000159_rel,JSONObject,model part name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000163,String,equipment manufacturer serial number,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000166,String,tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000166_rel,JSONObject,tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000177,String,tag description,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000178,String,parent tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000178_rel,JSONObject,parent tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000179,String,designed by company name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000179_rel,JSONObject,designed by company name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000182,String,from tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000182,String,from tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000182,String,from tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000182_rel,JSONObject,from tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000182_rel,JSONObject,from tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000182_rel,JSONObject,from tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_1_10000101_10000201_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_2,CFIHOS_10000184,String,to tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_2,CFIHOS_10000184,String,to tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_2,CFIHOS_10000184,String,to tag name,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_2,CFIHOS_10000184_rel,JSONObject,to tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_2,CFIHOS_10000184_rel,JSONObject,to tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_2,CFIHOS_10000184_rel,JSONObject,to tag name,key,TRUE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_1_10000101_10000201_2,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_2,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000301_10000401_1,CFIHOS_10000303,Float,requisition total estimate,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_1_10000301_10000401_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000301_10000401_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000001,Float,actual length,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000001_UOM,String,actual length,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000009,String,,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000010,String,,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000011,String,,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000033,String,cable specification,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000039,Boolean,chemical cleaning required,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000060,Float,compressibility factor Z at inlet,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,CFIHOS_40000070,Boolean,critical line,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000001_40000101_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000001_40000101_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000108,String,explosion protection concept,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000109,String,explosion protection examination certificate number,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000110,String,explosion protection gas group,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000111,String,explosion protection notified body,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000112,String,explosion protection temperature class,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000123,String,flanges material specification,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000158,Boolean,hot oil flushing,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000173,String,ingress protection,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000174,String,inlet flange rating,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,CFIHOS_40000178,String,insulation code,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000101_40000201_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000101_40000201_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000201,Float,length,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000201_UOM,String,length,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000211,Float,lower limit operating heat tracing temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000211_UOM,String,lower limit operating heat tracing temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000250,String,non destructive testing methods,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000259,Float,normal operating gas density,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000260,Float,normal operating gas dynamic viscosity,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000273,Float,normal operating liquid density,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000274,Float,normal operating liquid dynamic viscosity,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000275,Float,normal operating mass flow rate,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,CFIHOS_40000275_UOM,String,normal operating mass flow rate,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000201_40000301_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_2,CFIHOS_40000293,Float,normal volume flow rate,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000201_40000301_2,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000201_40000301_2,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000301_40000401_1,CFIHOS_40000320,String,pressure equipment category,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000301_40000401_1,CFIHOS_40000320,String,pressure equipment category,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000301_40000401_1,CFIHOS_40000336,Float,relief valve set pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000301_40000401_1,CFIHOS_40000337,String,remarks,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000301_40000401_1,CFIHOS_40000371,String,signal type,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000301_40000401_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000301_40000401_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_1,CFIHOS_40000412,String,test medium,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000401_40000501_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000485,Float,inlet flange size,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000488,String,piping class,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000489,Float,capacity (volume),,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000489_UOM,String,capacity (volume),,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000491,Float,corrosion allowance,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000494,Float,dry weight,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000494_UOM,String,dry weight,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000496,Float,height,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000496_UOM,String,height,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000500,Float,length tan tan,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000500_UOM,String,length tan tan,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000401_40000501_2,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000528,Float,rated voltage,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000536,Float,upper limit design temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000541,Float,width,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000543,Boolean,heat tracing,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000546,Float,density,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,CFIHOS_40000579,String,safety integrity level,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,CFIHOS_40000581,Float,set point,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,CFIHOS_40000582,Float,set point high,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,CFIHOS_40000583,Float,set point low,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,CFIHOS_40000585,Boolean,fire safe,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,CFIHOS_40000599,String,communication protocol,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,CFIHOS_40000600,String,input signal range,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000501_40000601_2,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000501_40000601_2,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000601_40000701_1,CFIHOS_40000615,String,service code,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,CFIHOS_4_40000601_40000701_1,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000601_40000701_1,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,cfihosTagID,,EntityTypeGroup,entityType,String!,entity type,"replace(`cfihosTagID`,'-','_')",FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,EntityTypeGroup,externalId,String!,external id,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_1_10000101_10000201_1,CFIHOS_10000153,String,discipline,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000509,Float,nominal diameter,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000509_UOM,String,nominal diameter,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000499,Float,insulation thickness,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+source_database,source_table,source_property,,CFIHOS_4_40000401_40000501_2,CFIHOS_40000499_UOM,String,insulation thickness,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000503,Float,lower limit design temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000503_UOM,String,lower limit design temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000504,Float,lower limit operating temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000504_UOM,String,lower limit operating temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000512,Float,normal operating pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000512_UOM,String,normal operating pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000537,Float,upper limit operating pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000537_UOM,String,upper limit operating pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000538,Float,upper limit operating temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000538_UOM,String,upper limit operating temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000514,Float,normal operating temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000514_UOM,String,normal operating temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000516,Float,operating weight,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000516_UOM,String,operating weight,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000532,Float,test pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000532_UOM,String,test pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000535,Float,upper limit design pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000535_UOM,String,upper limit design pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000551,Float,lower limit design pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000551_UOM,String,lower limit design pressure,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space
+,,,,CFIHOS_4_40000501_40000601_1,CFIHOS_40000536_UOM,String,upper limit design temperature,,FALSE,cfihos_domain_model,cfihos_domain_model,1,1,source_data_model,source_entity,1,source_property,source_space

@@ -1,0 +1,23 @@
+name: cfihos_domain_model-EntityTypeGroup
+externalId: cfihos_domain_model-EntityTypeGroup
+query: cfihos_domain_model-EntityTypeGroup.sql
+destination:
+  dataModel:
+    destinationType: EntityTypeGroup
+    externalId: cfihos_domain_model
+    space: cfihos_domain_model
+    version: 1
+  instanceSpace: cfihos_domain_model
+  type: instances
+
+action: upsert
+shared: true
+ignoreNullFields: true
+
+authentication:
+  audience: ''
+  cdfProjectName: '#{cdfProjectName}#'
+  clientId: '#{cdf-automation-client-id}#'
+  clientSecret: '#{cdf-automation-client-secret}#'
+  scopes: '#{adscope}#'
+  tokenUri: '#{tokenUrl}#'
