@@ -109,7 +109,8 @@ def read_environ_config(
                 found = True
                 break
         if not found:
-            raise ValueError(f"Module {m} not found in template directories {tmpl_dirs}.")
+            print(f"  [bold red]Module {m} not found in template directories {tmpl_dirs}.")
+            exit(1)
     return load_list
 
 
