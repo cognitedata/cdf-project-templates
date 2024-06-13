@@ -8,20 +8,20 @@ import pytest
 import yaml
 
 from cognite_toolkit._cdf_tk.commands.build import BuildCommand, _BuildState, _Helpers
-from cognite_toolkit._cdf_tk.load import LOADER_BY_FOLDER_NAME
-from cognite_toolkit._cdf_tk.templates import (
-    flatten_dict,
-    iterate_modules,
-    module_from_path,
-)
-from cognite_toolkit._cdf_tk.templates.data_classes import (
+from cognite_toolkit._cdf_tk.data_classes import (
     BuildConfigYAML,
     ConfigEntry,
     Environment,
     InitConfigYAML,
     SystemYAML,
 )
-from cognite_toolkit._cdf_tk.utils import YAMLComment
+from cognite_toolkit._cdf_tk.loaders import LOADER_BY_FOLDER_NAME
+from cognite_toolkit._cdf_tk.utils import (
+    YAMLComment,
+    flatten_dict,
+    iterate_modules,
+    module_from_path,
+)
 from tests.tests_unit.data import PYTEST_PROJECT
 from tests.tests_unit.test_cdf_tk.constants import BUILD_DIR
 
@@ -46,7 +46,7 @@ def dummy_environment() -> Environment:
         name="dev",
         project="my_project",
         build_type="dev",
-        selected_modules_and_packages=["none"],
+        selected=["none"],
     )
 
 
@@ -319,7 +319,7 @@ class TestBuildConfigYAML:
         system_config = SystemYAML.load_from_directory(PYTEST_PROJECT, build_env_name)
         config = BuildConfigYAML.load_from_directory(PYTEST_PROJECT, build_env_name)
         available_modules = {module.name for module, _ in iterate_modules(PYTEST_PROJECT)}
-        config.environment.selected_modules_and_packages = list(available_modules)
+        config.environment.selected = list(available_modules)
 
         BuildCommand().build_config(
             BUILD_DIR, PYTEST_PROJECT, config=config, system_config=system_config, clean=True, verbose=False

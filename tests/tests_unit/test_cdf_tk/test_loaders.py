@@ -1,6 +1,7 @@
 import os
 import pathlib
-from collections.abc import Iterable
+from collections import Counter, defaultdict
+from collections.abc import Hashable, Iterable
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -18,43 +19,52 @@ from cognite.client.data_classes import (
     Transformation,
     TransformationSchedule,
 )
-from cognite.client.data_classes.data_modeling import Edge, Node
+from cognite.client.data_classes.data_modeling import Edge, Node, NodeApply
 from pytest import MonkeyPatch
 from pytest_regressions.data_regression import DataRegressionFixture
 
-from cognite_toolkit._cdf_tk._parameters import ParameterSet, ParameterValue, read_parameters_from_dict
+from cognite_toolkit._cdf_tk._parameters import ParameterSet, read_parameters_from_dict
 from cognite_toolkit._cdf_tk.commands import BuildCommand, CleanCommand, DeployCommand
-from cognite_toolkit._cdf_tk.exceptions import ToolkitYAMLFormatError
-from cognite_toolkit._cdf_tk.load import (
-    LOADER_BY_FOLDER_NAME,
-    LOADER_LIST,
-    RESOURCE_LOADER_LIST,
-    DataModelLoader,
-    DatapointsLoader,
-    DataSetsLoader,
-    ExtractionPipelineConfigLoader,
-    FileMetadataLoader,
-    FunctionLoader,
-    GroupAllScopedLoader,
-    GroupResourceScopedLoader,
-    Loader,
-    ResourceLoader,
-    ResourceTypes,
-    TimeSeriesLoader,
-    TransformationLoader,
-    ViewLoader,
-)
-from cognite_toolkit._cdf_tk.templates import (
-    module_from_path,
-    resource_folder_from_path,
-)
-from cognite_toolkit._cdf_tk.templates.data_classes import (
+from cognite_toolkit._cdf_tk.data_classes import (
     BuildConfigYAML,
     Environment,
     InitConfigYAML,
     SystemYAML,
 )
-from cognite_toolkit._cdf_tk.utils import CDFToolConfig, tmp_build_directory
+from cognite_toolkit._cdf_tk.exceptions import ToolkitYAMLFormatError
+from cognite_toolkit._cdf_tk.loaders import (
+    LOADER_BY_FOLDER_NAME,
+    LOADER_LIST,
+    RESOURCE_LOADER_LIST,
+    ContainerLoader,
+    DataModelLoader,
+    DatapointsLoader,
+    DataSetsLoader,
+    ExtractionPipelineConfigLoader,
+    ExtractionPipelineLoader,
+    FileMetadataLoader,
+    FunctionLoader,
+    GroupAllScopedLoader,
+    GroupLoader,
+    GroupResourceScopedLoader,
+    Loader,
+    NodeLoader,
+    RawDatabaseLoader,
+    RawTableLoader,
+    ResourceLoader,
+    ResourceTypes,
+    SpaceLoader,
+    TimeSeriesLoader,
+    TransformationLoader,
+    ViewLoader,
+)
+from cognite_toolkit._cdf_tk.loaders.data_classes import NodeAPICall, NodeApplyListWithCall, RawDatabaseTable
+from cognite_toolkit._cdf_tk.utils import (
+    CDFToolConfig,
+    module_from_path,
+    resource_folder_from_path,
+    tmp_build_directory,
+)
 from cognite_toolkit._cdf_tk.validation import validate_resource_yaml
 from tests.constants import REPO_ROOT
 from tests.tests_unit.approval_client import ApprovalCogniteClient
@@ -137,7 +147,89 @@ class TestDataSetsLoader:
         assert len(unchanged) == 1
 
 
+class TestContainerLoader:
+    @pytest.mark.parametrize(
+        "item",
+        [
+            pytest.param(
+                {
+                    "properties": {
+                        "myDirectRelation": {
+                            "name": "my direct relation",
+                            "type": {
+                                "type": "direct",
+                                "container": {
+                                    "type": "container",
+                                    "space": "sp_my_space",
+                                    "externalId": "my_container",
+                                },
+                            },
+                        }
+                    }
+                },
+                id="Direct relation property with require constraint.",
+            ),
+        ],
+    )
+    def test_valid_spec(self, item: dict):
+        spec = ContainerLoader.get_write_cls_parameter_spec()
+        dumped = read_parameters_from_dict(item)
+
+        extra = dumped - spec
+
+        assert not extra, f"Extra keys: {extra}"
+
+
 class TestViewLoader:
+    @pytest.mark.parametrize(
+        "item",
+        [
+            pytest.param(
+                {
+                    "filter": {
+                        "hasData": [
+                            {"type": "container", "space": "sp_my_space", "externalId": "container_id"},
+                            {"type": "view", "space": "sp_my_space", "externalId": "view_id"},
+                        ]
+                    }
+                },
+                id="HasData Filter",
+            ),
+            pytest.param(
+                {
+                    "properties": {
+                        "reverseDirectRelation": {
+                            "connectionType": "multi_reverse_direct_relation",
+                            "source": {
+                                "type": "view",
+                                "space": "sp_my_space",
+                                "externalId": "view_id",
+                                "version": "v42",
+                            },
+                            "through": {
+                                "source": {
+                                    "type": "view",
+                                    "space": "sp_my_space",
+                                    "externalId": "view_id",
+                                    "version": "v42",
+                                },
+                                "identifier": "view_property",
+                            },
+                        }
+                    }
+                },
+                id="Reverse Direct Relation Property",
+            ),
+        ],
+    )
+    def test_valid_spec(self, item: dict):
+        spec = ViewLoader.get_write_cls_parameter_spec()
+        dumped = read_parameters_from_dict(item)
+
+        extra = dumped - spec
+
+        assert not extra, f"Extra keys: {extra}"
+
     def test_update_view_with_interface(self, cognite_client_approval: ApprovalCogniteClient):
         cdf_tool = MagicMock(spec=CDFToolConfig)
         cdf_tool.verify_client.return_value = cognite_client_approval.mock_client
@@ -199,6 +291,62 @@ class TestViewLoader:
         assert len(to_create) == 0
         assert len(to_change) == 0
         assert len(unchanged) == 1
+
+    @pytest.mark.parametrize(
+        "item, expected",
+        [
+            pytest.param(
+                {
+                    "space": "sp_my_space",
+                    "properties": {
+                        "name": {
+                            "container": {
+                                "type": "container",
+                                "space": "my_container_space",
+                                "externalId": "my_container",
+                            }
+                        }
+                    },
+                },
+                [
+                    (SpaceLoader, "sp_my_space"),
+                    (ContainerLoader, dm.ContainerId(space="my_container_space", external_id="my_container")),
+                ],
+                id="View with one container property",
+            ),
+            pytest.param(
+                {
+                    "space": "sp_my_space",
+                    "properties": {
+                        "toEdge": {
+                            "source": {
+                                "type": "view",
+                                "space": "my_view_space",
+                                "externalId": "my_view",
+                                "version": "1",
+                            },
+                            "edgeSource": {
+                                "type": "view",
+                                "space": "my_other_view_space",
+                                "externalId": "my_edge_view",
+                                "version": "42",
+                            },
+                        }
+                    },
+                },
+                [
+                    (SpaceLoader, "sp_my_space"),
+                    (ViewLoader, dm.ViewId(space="my_view_space", external_id="my_view", version="1")),
+                    (ViewLoader, dm.ViewId(space="my_other_view_space", external_id="my_edge_view", version="42")),
+                ],
+                id="View with one container property",
+            ),
+        ],
+    )
+    def test_get_dependent_items(self, item: dict, expected: list[tuple[type[ResourceLoader], Hashable]]) -> None:
+        actual = ViewLoader.get_dependent_items(item)
+
+        assert list(actual) == expected
 
 
 class TestDataModelLoader:
@@ -364,10 +512,68 @@ class TestGroupLoader:
         assert len(to_change) == 1
         assert len(unchanged) == 0
 
-        cmd._update_resources(to_change, loader, False)
+        cmd._update_resources(
+            to_change,
+            loader,
+        )
 
         assert cognite_client_approval.create_calls()["Group"] == 1
         assert cognite_client_approval.delete_calls()["Group"] == 1
+
+    @pytest.mark.parametrize(
+        "item, expected",
+        [
+            pytest.param(
+                {"capabilities": [{"dataModelsAcl": {"scope": {"spaceIdScope": {"spaceIds": ["space1", "space2"]}}}}]},
+                [(SpaceLoader, "space1"), (SpaceLoader, "space2")],
+                id="SpaceId scope",
+            ),
+            pytest.param(
+                {"capabilities": [{"timeSeriesAcl": {"scope": {"datasetScope": {"ids": ["ds_dataset1"]}}}}]},
+                [
+                    (DataSetsLoader, "ds_dataset1"),
+                ],
+                id="Dataset scope",
+            ),
+            pytest.param(
+                {
+                    "capabilities": [
+                        {"extractionRunsAcl": {"scope": {"extractionPipelineScope": {"ids": ["ex_my_extraction"]}}}}
+                    ]
+                },
+                [
+                    (ExtractionPipelineLoader, "ex_my_extraction"),
+                ],
+                id="Extraction pipeline scope",
+            ),
+            pytest.param(
+                {"capabilities": [{"rawAcl": {"scope": {"tableScope": {"dbsToTables": {"my_db": ["my_table"]}}}}}]},
+                [
+                    (RawDatabaseLoader, RawDatabaseTable("my_db")),
+                    (RawTableLoader, RawDatabaseTable("my_db", "my_table")),
+                ],
+                id="Table scope",
+            ),
+            pytest.param(
+                {"capabilities": [{"datasetsAcl": {"scope": {"idscope": {"ids": ["ds_my_dataset"]}}}}]},
+                [
+                    (DataSetsLoader, "ds_my_dataset"),
+                ],
+                id="ID scope dataset",
+            ),
+            pytest.param(
+                {"capabilities": [{"extractionPipelinesAcl": {"scope": {"idscope": {"ids": ["ex_my_extraction"]}}}}]},
+                [
+                    (ExtractionPipelineLoader, "ex_my_extraction"),
+                ],
+                id="ID scope extractionpipline ",
+            ),
+        ],
+    )
+    def test_get_dependent_items(self, item: dict, expected: list[tuple[type[ResourceLoader], Hashable]]) -> None:
+        actual_dependent_items = GroupLoader.get_dependent_items(item)
+
+        assert list(actual_dependent_items) == expected
 
 
 class TestTimeSeriesLoader:
@@ -534,6 +740,128 @@ conflictMode: upsert
                 with patch.object(pathlib.Path, "read_text", return_value=self.trafo_sql):
                     loader.load_resource(Path("transformation.yaml"), cdf_tool_config_real, skip_validation=False)
 
+    @pytest.mark.parametrize(
+        "item, expected",
+        [
+            pytest.param(
+                {
+                    "dataSetExternalId": "ds_my_dataset",
+                    "destination": {
+                        "type": "instances",
+                        "dataModel": {
+                            "space": "sp_model_space",
+                            "externalId": "my_model",
+                            "version": "v1",
+                            "destinationType": "assets",
+                        },
+                        "instanceSpace": "sp_data_space",
+                    },
+                },
+                [
+                    (DataSetsLoader, "ds_my_dataset"),
+                    (SpaceLoader, "sp_data_space"),
+                    (DataModelLoader, dm.DataModelId(space="sp_model_space", external_id="my_model", version="v1")),
+                ],
+                id="Transformation to data model",
+            ),
+            pytest.param(
+                {
+                    "destination": {
+                        "type": "nodes",
+                        "view": {"space": "sp_space", "externalId": "my_view", "version": "v1"},
+                        "instanceSpace": "sp_data_space",
+                    }
+                },
+                [
+                    (SpaceLoader, "sp_data_space"),
+                    (ViewLoader, dm.ViewId(space="sp_space", external_id="my_view", version="v1")),
+                ],
+                id="Transformation to nodes ",
+            ),
+            pytest.param(
+                {"destination": {"type": "raw", "database": "my_db", "table": "my_table"}},
+                [
+                    (RawDatabaseLoader, RawDatabaseTable("my_db")),
+                    (RawTableLoader, RawDatabaseTable("my_db", "my_table")),
+                ],
+                id="Transformation to RAW table",
+            ),
+        ],
+    )
+    def test_get_dependent_items(self, item: dict, expected: list[tuple[type[ResourceLoader], Hashable]]) -> None:
+        actual = TransformationLoader.get_dependent_items(item)
+
+        assert list(actual) == expected
+
+
+class TestNodeLoader:
+    @pytest.mark.parametrize(
+        "yamL_raw, expected",
+        [
+            pytest.param(
+                """space: my_space
+externalId: my_external_id""",
+                NodeApplyListWithCall([NodeApply("my_space", "my_external_id")]),
+                id="Single node no API call",
+            ),
+            pytest.param(
+                """- space: my_space
+  externalId: my_first_node
+- space: my_space
+  externalId: my_second_node
+""",
+                NodeApplyListWithCall(
+                    [
+                        NodeApply("my_space", "my_first_node"),
+                        NodeApply("my_space", "my_second_node"),
+                    ]
+                ),
+                id="Multiple nodes no API call",
+            ),
+            pytest.param(
+                """autoCreateDirectRelations: true
+skipOnVersionConflict: false
+replace: true
+node:
+  space: my_space
+  externalId: my_external_id""",
+                NodeApplyListWithCall([NodeApply("my_space", "my_external_id")], NodeAPICall(True, False, True)),
+                id="Single node with API call",
+            ),
+            pytest.param(
+                """autoCreateDirectRelations: true
+skipOnVersionConflict: false
+replace: true
+nodes:
+- space: my_space
+  externalId: my_first_node
+- space: my_space
+  externalId: my_second_node
+    """,
+                NodeApplyListWithCall(
+                    [
+                        NodeApply("my_space", "my_first_node"),
+                        NodeApply("my_space", "my_second_node"),
+                    ],
+                    NodeAPICall(True, False, True),
+                ),
+                id="Multiple nodes with API call",
+            ),
+        ],
+    )
+    def test_load_nodes(
+        self,
+        yamL_raw: str,
+        expected: NodeApplyListWithCall,
+        cdf_tool_config: CDFToolConfig,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        loader = NodeLoader.create_loader(cdf_tool_config, None)
+        mock_read_yaml_file({"my_node.yaml": yaml.safe_load(yamL_raw)}, monkeypatch)
+        loaded = loader.load_resource(Path("my_node.yaml"), cdf_tool_config, skip_validation=True)
+
+        assert loaded.dump() == expected.dump()
+
 
 class TestExtractionPipelineDependencies:
     _yaml = """
@@ -622,12 +950,40 @@ class TestExtractionPipelineDependencies:
             assert res.deleted == 1
 
 
+class TestExtractionPipelineLoader:
+    @pytest.mark.parametrize(
+        "item, expected",
+        [
+            pytest.param(
+                {
+                    "dataSetExternalId": "ds_my_dataset",
+                    "rawTables": [
+                        {"dbName": "my_db", "tableName": "my_table"},
+                        {"dbName": "my_db", "tableName": "my_table2"},
+                    ],
+                },
+                [
+                    (DataSetsLoader, "ds_my_dataset"),
+                    (RawDatabaseLoader, RawDatabaseTable("my_db")),
+                    (RawTableLoader, RawDatabaseTable("my_db", "my_table")),
+                    (RawTableLoader, RawDatabaseTable("my_db", "my_table2")),
+                ],
+                id="Extraction pipeline to Table",
+            ),
+        ],
+    )
+    def test_get_dependent_items(self, item: dict, expected: list[tuple[type[ResourceLoader], Hashable]]) -> None:
+        actual = ExtractionPipelineLoader.get_dependent_items(item)
+
+        assert list(actual) == expected
+
+
 class TestDeployResources:
     def test_deploy_resource_order(self, cognite_client_approval: ApprovalCogniteClient):
         build_env_name = "dev"
         system_config = SystemYAML.load_from_directory(PYTEST_PROJECT, build_env_name)
         config = BuildConfigYAML.load_from_directory(PYTEST_PROJECT, build_env_name)
-        config.environment.selected_modules_and_packages = ["another_module"]
+        config.environment.selected = ["another_module"]
         build_cmd = BuildCommand()
         build_cmd.build_config(
             BUILD_DIR, PYTEST_PROJECT, config=config, system_config=system_config, clean=True, verbose=False
@@ -681,7 +1037,9 @@ class TestFormatConsistency:
 
         mock_read_yaml_file({"dict.yaml": instance.dump()}, monkeypatch)
 
-        loaded = loader.load_resource(filepath=Path("dict.yaml"), ToolGlobals=cdf_tool_config, skip_validation=True)
+        loaded = loader.load_resource(
+            filepath=Path(loader.folder_name) / "dict.yaml", ToolGlobals=cdf_tool_config, skip_validation=True
+        )
         assert isinstance(
             loaded, (loader.resource_write_cls, loader.list_write_cls)
         ), f"loaded must be an instance of {loader.list_write_cls} or {loader.resource_write_cls} but is {type(loaded)}"
@@ -708,7 +1066,9 @@ class TestFormatConsistency:
 
         mock_read_yaml_file({"dict.yaml": instances.dump()}, monkeypatch)
 
-        loaded = loader.load_resource(filepath=Path("dict.yaml"), ToolGlobals=cdf_tool_config, skip_validation=True)
+        loaded = loader.load_resource(
+            filepath=Path(loader.folder_name) / "dict.yaml", ToolGlobals=cdf_tool_config, skip_validation=True
+        )
         assert isinstance(
             loaded, (loader.resource_write_cls, loader.list_write_cls)
         ), f"loaded must be an instance of {loader.list_write_cls} or {loader.resource_write_cls} but is {type(loaded)}"
@@ -748,12 +1108,12 @@ def cognite_module_files_with_loader() -> Iterable[ParameterSet]:
                 name="not used",
                 project=os.environ.get("CDF_PROJECT", "<not set>"),
                 build_type="dev",
-                selected_modules_and_packages=[],
+                selected=[],
             )
         ).load_defaults(source_path)
         config = config_init.as_build_config()
         config.set_environment_variables()
-        config.environment.selected_modules_and_packages = config.available_modules
+        config.environment.selected = config.available_modules
 
         source_by_build_path = BuildCommand().build_config(
             build_dir=build_dir,
@@ -775,6 +1135,9 @@ def cognite_module_files_with_loader() -> Iterable[ParameterSet]:
             loader = next((loader for loader in loaders if loader.is_supported_file(filepath)), None)
             if loader is None:
                 raise ValueError(f"Could not find loader for {filepath}")
+            if loader is FunctionLoader and filepath.parent.name != loader.folder_name:
+                # Functions will only accept YAML in root function folder.
+                continue
             if issubclass(loader, ResourceLoader):
                 raw = yaml.CSafeLoader(filepath.read_text()).get_data()
                 source_path = source_by_build_path[filepath]
@@ -804,7 +1167,7 @@ class TestResourceLoaders:
         # The spec is calculated based on the resource class __init__ method.
         # There can be deviations in the output from the dump. If that is the case,
         # the 'get_write_cls_parameter_spec' must be updated in the loader. See, for example, the DataModelLoader.
-        assert sorted(extra) == sorted(ParameterSet[ParameterValue]({}))
+        assert sorted(extra) == []
 
     @pytest.mark.parametrize("loader_cls, content", list(cognite_module_files_with_loader()))
     def test_write_cls_spec_against_cognite_modules(self, loader_cls: type[ResourceLoader], content: dict) -> None:
@@ -813,3 +1176,34 @@ class TestResourceLoaders:
         warnings = validate_resource_yaml(content, spec, Path("test.yaml"))
 
         assert sorted(warnings) == []
+
+    @pytest.mark.parametrize("loader_cls", RESOURCE_LOADER_LIST)
+    def test_empty_required_capabilities_when_no_items(
+        self, loader_cls: type[ResourceLoader], cdf_tool_config: CDFToolConfig
+    ):
+        actual = loader_cls.get_required_capability(loader_cls.list_write_cls([]))
+
+        assert actual == []
+
+    def test_unique_kind_by_folder(self):
+        kind = defaultdict(list)
+        for loader_cls in RESOURCE_LOADER_LIST:
+            kind[loader_cls.folder_name].append(loader_cls.kind)
+
+        duplicated = {folder: Counter(kinds) for folder, kinds in kind.items() if len(set(kinds)) != len(kinds)}
+        # we have two types Group loaders, one for scoped and one for all
+        # this is intended and thus not an issue.
+        duplicated.pop("auth")
+
+        assert not duplicated, f"Duplicated kind by folder: {duplicated!s}"
+
+
+class TestLoaders:
+    def test_unique_display_names(self, cdf_tool_config: CDFToolConfig):
+        name_by_count = Counter(
+            [loader_cls.create_loader(cdf_tool_config, None).display_name for loader_cls in LOADER_LIST]
+        )
+
+        duplicates = {name: count for name, count in name_by_count.items() if count > 1}
+
+        assert not duplicates, f"Duplicate display names: {duplicates}"

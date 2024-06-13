@@ -15,6 +15,92 @@ Changes are grouped as follows:
 - `Fixed` for any bug fixes.
 - `Security` in case of vulnerabilities.
 
+## TBD
+
+## Improved
+
+- When running `cdf-tk auth verify`, if the client does not have access to the `CDF_PROJECT` the user will now get
+  a more informative error message.
+- When running `cdf-tk auth verify` and missing the `FunctionAcl(READ)` capability, the user will now get a more
+  informative error message when checking the function service status
+
+## [0.2.0] - 2024-06-10
+
+### Fixed
+
+- When running `cdf-tk clean` or `cdf-tk deploy --drop --drop-data` there was an edge case that triggered the bug
+  `ValueError: No capabilities given`. This is now fixed.
+- When deploying `containers` resources with an index, the `cdf-tk deploy` would consider the resource as changed
+  even though it was not. This is now fixed.
+
+## [0.2.0b4] - 2024-06-06
+
+### Added
+
+- Support for resource type `TransformationNotification` in the `transformations` folder.
+
+### Changed
+
+- [BREAKING] In `functions`, the function config file must be in the root function directory. This means
+  that, for example, `my_module/function/some_folder/function.yaml` will no longer be included by
+  the `cdf-tk build` command. Instead, it must be in `my_module/function/function.yaml`. The motivation
+  is to allow arbitrary YAML files as part of the function code.
+- The toolkit now only gives a `TemplateVariableWarning` (`Variable my_variable has value <change_me> ...`) if
+  the variable is used by `selected` in the `config.[env].yaml`. This is to avoid unnecessary warnings.
+- The `FeaturePrevieWarnings` are no longer printed when running `cdf-tk deploy` or `cdf-tk clean`. These warnings
+  are from the `cognite-sdk` and can be confusing to the user.
+
+### Fixed
+
+- When running `cdf-tk init --upgrade` from version `0.1.4` the user would get a `ToolkitMigrationError`.
+  This is now fixed.
+
+## [0.2.0b3] - 2024-06-04
+
+### Added
+
+- Support for resource type `Label` in the  `labels` folder.
+
+### Fixed
+
+- The toolkit now ensures `Transformations` and `Functions` are deployed before `Workflows`
+- The toolkit now ensures `TimeSeries` and `Groups` are deployed before `DatapointSubscriptions`.
+
+## [0.2.0b2] - 2024-06-03
+
+### Fixed
+
+- Running the build command, `cdf-tk build`, with `Group` resources scoped will read to incorrect
+  warning such as `WARNING [HIGH]: Space 'spaceIds' is missing and is required by:` and
+  `WARNING [HIGH]: DataSet 'ids' is missing and is required by:`. This is now fixed.
+- Running the build command, `cdf-tk build`, with a `View` resource with a `hasData` filter would print a
+  `UnusedParameterWarning: Parameter 'externalId' is not used in section ('filter', 'hasData', 0, 'externalId').`.
+  This is incorrect and is now fixed to not print this warning.
+- If you had a `container` with a direct relation property with a required constraint, the `cdf-tk build` command
+  would incorrectly yield a warning that the `Parameter 'type' is not used ...`. This is now fixed.
+
+## [0.2.0b1] - 2024-05-20
+
+### Added
+
+- Support for loading `nodes` with `APICall` arguments. The typical use case is when `node types` are part of a
+  data model, and the default `APICall` arguments works well.
+
+### Fixed
+
+- Error message displayed to console on failed `cdf-tk deploy` command could be modified. This is now fixed.
+- Using display name instead of folder name on a failed `cdf-tk deploy` or `cdf-tk clean` command. For example,
+  if `datapoints subscription` was failing the error message would be `Failure to load/deploy timeseries as expected`,
+  now it is `Failure to load/deploy timeseries.subscription as expected`.
+- Unique display names for all resource types.
+- Fixed bug when deploying extraction pipeline config, when none existed from before:
+  `There is no config stored for the extraction pipeline`.
+
+### Changed
+
+- In `config.[env].yaml`, in the `environment` section, `selected_modules_and_packages` is renamed to `selected`.
+  The old names will still work, but will trigger a deprecation warning.
+
 ## [0.2.0a5] - 2024-05-28
 
 ### Added

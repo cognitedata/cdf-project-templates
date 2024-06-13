@@ -13,13 +13,18 @@ from rich.panel import Panel
 
 from cognite_toolkit._cdf_tk.commands._base import ToolkitCommand
 from cognite_toolkit._cdf_tk.commands.clean import CleanCommand
-from cognite_toolkit._cdf_tk.constants import _RUNNING_IN_BROWSER
+from cognite_toolkit._cdf_tk.constants import _RUNNING_IN_BROWSER, BUILD_ENVIRONMENT_FILE
+from cognite_toolkit._cdf_tk.data_classes import (
+    BuildEnvironment,
+)
 from cognite_toolkit._cdf_tk.exceptions import (
-    ToolkitCleanResourceError,
+    ResourceCreationError,
+    ResourceUpdateError,
     ToolkitDeployResourceError,
     ToolkitNotADirectoryError,
+    UploadFileError,
 )
-from cognite_toolkit._cdf_tk.load import (
+from cognite_toolkit._cdf_tk.loaders import (
     LOADER_BY_FOLDER_NAME,
     DataLoader,
     DeployResults,
@@ -27,18 +32,12 @@ from cognite_toolkit._cdf_tk.load import (
     ResourceContainerLoader,
     ResourceLoader,
 )
-from cognite_toolkit._cdf_tk.load.data_classes import (
+from cognite_toolkit._cdf_tk.loaders.data_classes import (
     DatapointDeployResult,
     DeployResult,
     ResourceContainerDeployResult,
     ResourceDeployResult,
     UploadDeployResult,
-)
-from cognite_toolkit._cdf_tk.templates import (
-    BUILD_ENVIRONMENT_FILE,
-)
-from cognite_toolkit._cdf_tk.templates.data_classes import (
-    BuildEnvironment,
 )
 from cognite_toolkit._cdf_tk.tk_warnings.other import (
     LowSeverityWarning,
@@ -142,27 +141,20 @@ class DeployCommand(ToolkitCommand):
                 )
                 if result:
                     results[result.name] = result
-                if ToolGlobals.failed:
-                    raise ToolkitCleanResourceError(f"Failure to clean {loader_cls.folder_name} as expected.")
             print("[bold]...cleaning complete![/]")
 
         if drop or drop_data:
             print(Panel("[bold]DEPLOYING resources...[/]"))
         for loader_cls in ordered_loaders:
+            loader_instance = loader_cls.create_loader(ToolGlobals, build_dir)
             result = self.deploy_resources(
-                loader_cls.create_loader(ToolGlobals, build_dir),
+                loader_instance,
                 ToolGlobals=ToolGlobals,
                 dry_run=dry_run,
                 has_done_drop=drop,
                 has_dropped_data=drop_data,
                 verbose=ctx.obj.verbose,
             )
-            if ToolGlobals.failed:
-                if results and results.has_counts:
-                    print(results.counts_table())
-                if results and results.has_uploads:
-                    print(results.uploads_table())
-                raise ToolkitDeployResourceError(f"Failure to load/deploy {loader_cls.folder_name} as expected.")
             if result:
                 results[result.name] = result
             if ctx.obj.verbose:
@@ -211,10 +203,7 @@ class DeployCommand(ToolkitCommand):
         # sort.
         filepaths = sorted(filepaths, key=sort_key)
 
-        loaded_resources = self._load_files(loader, filepaths, ToolGlobals, skip_validation=dry_run, verbose=verbose)
-        if loaded_resources is None:
-            ToolGlobals.failed = True
-            return None
+        loaded_resources = self._load_files(loader, filepaths, ToolGlobals, skip_validation=dry_run)
 
         # Duplicates should be handled on the build step,
         # but in case any of them slip through, we do it here as well to
@@ -264,17 +253,10 @@ class DeployCommand(ToolkitCommand):
 
             if to_create:
                 created = self._create_resources(to_create, loader, verbose)
-                if created is None:
-                    ToolGlobals.failed = True
-                    return None
                 nr_of_created += created
 
             if to_update:
-                updated = self._update_resources(to_update, loader, verbose)
-                if updated is None:
-                    ToolGlobals.failed = True
-                    return None
-
+                updated = self._update_resources(to_update, loader)
                 nr_of_changed += updated
 
         if verbose:
@@ -359,15 +341,17 @@ class DeployCommand(ToolkitCommand):
         else:
             print(f"{prefix_message}{', '.join(print_outs[:-1])} and {print_outs[-1]}")
 
-    def _create_resources(self, resources: T_CogniteResourceList, loader: ResourceLoader, verbose: bool) -> int | None:
+    def _create_resources(self, resources: T_CogniteResourceList, loader: ResourceLoader, verbose: bool) -> int:
         try:
             created = loader.create(resources)
         except CogniteAPIError as e:
             if e.code == 409:
                 self.warn(LowSeverityWarning("Resource(s) already exist(s), skipping creation."))
             else:
-                print(f"[bold red]ERROR:[/] Failed to create resource(s).\n{e}")
-                return None
+                # This must be printed as this if not rich filters out regex patterns from
+                # the error message which typically contains the critical information.
+                print(e)
+                raise ResourceCreationError(f"Failed to create resource(s). Error: {e!r}.") from e
         except CogniteDuplicatedError as e:
             self.warn(
                 LowSeverityWarning(
@@ -375,24 +359,20 @@ class DeployCommand(ToolkitCommand):
                 )
             )
         except Exception as e:
-            print(f"[bold red]ERROR:[/] Failed to create resource(s).\n{e}")
-            if verbose:
-                print(Panel(traceback.format_exc()))
-            return None
+            print(Panel(traceback.format_exc()))
+            raise ResourceCreationError(f"Failed to create resource(s). Error: {e!r}.") from e
         else:
             return len(created) if created is not None else 0
         return 0
 
-    def _update_resources(self, resources: T_CogniteResourceList, loader: ResourceLoader, verbose: bool) -> int | None:
+    def _update_resources(self, resources: T_CogniteResourceList, loader: ResourceLoader) -> int:
         try:
             updated = loader.update(resources)
         except Exception as e:
-            print(f"  [bold yellow]Error:[/] Failed to update {loader.display_name}. Error {e}.")
-            if verbose:
-                print(Panel(traceback.format_exc()))
-            return None
-        else:
-            return len(updated)
+            print(Panel(traceback.format_exc()))
+            raise ResourceUpdateError(f"Failed to update resource(s). Error: {e!r}.") from e
+
+        return len(updated)
 
     def _deploy_data(
         self,
@@ -400,7 +380,7 @@ class DeployCommand(ToolkitCommand):
         ToolGlobals: CDFToolConfig,
         dry_run: bool = False,
         verbose: bool = False,
-    ) -> UploadDeployResult | None:
+    ) -> UploadDeployResult:
         filepaths = loader.find_files()
 
         prefix = "Would upload" if dry_run else "Uploading"
@@ -410,10 +390,8 @@ class DeployCommand(ToolkitCommand):
             try:
                 message, file_datapoints = loader.upload(filepath, ToolGlobals, dry_run)
             except Exception as e:
-                print(f"  [bold red]Error:[/] Failed to upload {filepath.name}. Error: {e!r}.")
                 print(Panel(traceback.format_exc()))
-                ToolGlobals.failed = True
-                return None
+                raise UploadFileError(f"Failed to upload {filepath.name}. Error: {e!r}.") from e
             if verbose:
                 print(message)
             datapoints += file_datapoints

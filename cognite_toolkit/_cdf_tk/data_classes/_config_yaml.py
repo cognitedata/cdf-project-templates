@@ -13,23 +13,22 @@ from typing import Any, Literal
 import yaml
 from rich import print
 
-from cognite_toolkit._cdf_tk.constants import _RUNNING_IN_BROWSER
-from cognite_toolkit._cdf_tk.exceptions import ToolkitEnvError, ToolkitMissingModuleError
-from cognite_toolkit._cdf_tk.load import LOADER_BY_FOLDER_NAME
-from cognite_toolkit._cdf_tk.templates._constants import (
+from cognite_toolkit._cdf_tk.constants import (
+    _RUNNING_IN_BROWSER,
     BUILD_ENVIRONMENT_FILE,
     DEFAULT_CONFIG_FILE,
     MODULE_PATH_SEP,
     SEARCH_VARIABLES_SUFFIX,
 )
-from cognite_toolkit._cdf_tk.templates._utils import flatten_dict
+from cognite_toolkit._cdf_tk.exceptions import ToolkitEnvError, ToolkitMissingModuleError
+from cognite_toolkit._cdf_tk.loaders import LOADER_BY_FOLDER_NAME
 from cognite_toolkit._cdf_tk.tk_warnings import (
     FileReadWarning,
     MissingFileWarning,
     SourceFileModifiedWarning,
     WarningList,
 )
-from cognite_toolkit._cdf_tk.utils import YAMLComment, YAMLWithComments, calculate_str_or_file_hash
+from cognite_toolkit._cdf_tk.utils import YAMLComment, YAMLWithComments, calculate_str_or_file_hash, flatten_dict
 from cognite_toolkit._version import __version__
 
 from ._base import ConfigCore, _load_version_variable
@@ -40,26 +39,28 @@ class Environment:
     name: str
     project: str
     build_type: str
-    selected_modules_and_packages: list[str | tuple[str, ...]]
+    selected: list[str | tuple[str, ...]]
 
     @classmethod
     def load(cls, data: dict[str, Any], build_name: str) -> Environment:
+        _deprecation_selected(data)
+
         try:
             return Environment(
                 name=build_name,
                 project=data["project"],
                 build_type=data["type"],
-                selected_modules_and_packages=[
+                selected=[
                     tuple([part for part in selected.split(MODULE_PATH_SEP) if part])
                     if MODULE_PATH_SEP in selected
                     else selected
-                    for selected in data["selected_modules_and_packages"] or []
+                    for selected in data["selected"] or []
                 ],
             )
         except KeyError:
             raise ToolkitEnvError(
                 "Environment section is missing one or more required fields: 'name', 'project', 'type', or "
-                f"'selected_modules_and_packages' in {BuildConfigYAML._file_name(build_name)!s}"
+                f"'selected' in {BuildConfigYAML._file_name(build_name)!s}"
             )
 
     def dump(self) -> dict[str, Any]:
@@ -67,9 +68,9 @@ class Environment:
             "name": self.name,
             "project": self.project,
             "type": self.build_type,
-            "selected_modules_and_packages": [
+            "selected": [
                 MODULE_PATH_SEP.join(selected) if isinstance(selected, tuple) else selected
-                for selected in self.selected_modules_and_packages
+                for selected in self.selected
             ],
         }
 
@@ -144,7 +145,7 @@ class BuildConfigYAML(ConfigCore, ConfigYAMLCore):
             name=self.environment.name,  # type: ignore[arg-type]
             project=self.environment.project,
             build_type=self.environment.build_type,
-            selected_modules_and_packages=self.environment.selected_modules_and_packages,
+            selected=self.environment.selected,
             cdf_toolkit_version=__version__,
             hash_by_source_file=hash_by_source_file or {},
         )
@@ -157,7 +158,7 @@ class BuildConfigYAML(ConfigCore, ConfigYAMLCore):
     ) -> list[str | tuple[str, ...]]:
         selected_packages = [
             package
-            for package in self.environment.selected_modules_and_packages
+            for package in self.environment.selected
             if package in modules_by_package and isinstance(package, str)
         ]
         if verbose:
@@ -167,9 +168,7 @@ class BuildConfigYAML(ConfigCore, ConfigYAMLCore):
             for package in selected_packages:
                 print(f"    {package}")
 
-        selected_modules = [
-            module for module in self.environment.selected_modules_and_packages if module not in modules_by_package
-        ]
+        selected_modules = [module for module in self.environment.selected if module not in modules_by_package]
         if missing := set(selected_modules) - available_modules:
             raise ToolkitMissingModuleError(f"The following selected modules are missing, please check path: {missing}")
         selected_modules.extend(
@@ -202,12 +201,13 @@ class BuildEnvironment(Environment):
         if build_name is None:
             raise ValueError("build_name must be specified")
         version = _load_version_variable(data, BUILD_ENVIRONMENT_FILE)
+        _deprecation_selected(data)
         try:
             return BuildEnvironment(
                 name=build_name,
                 project=data["project"],
                 build_type=data["type"],
-                selected_modules_and_packages=data["selected_modules_and_packages"],
+                selected=data["selected"],
                 cdf_toolkit_version=version,
                 hash_by_source_file={Path(file): hash_ for file, hash_ in data.get("source_files", {}).items()},
             )
@@ -241,6 +241,15 @@ class BuildEnvironment(Environment):
             elif hash_ != calculate_str_or_file_hash(file):
                 warning_list.append(SourceFileModifiedWarning(file))
         return warning_list
+
+
+def _deprecation_selected(data: dict[str, Any]) -> None:
+    if "selected_modules_and_packages" in data and "selected" not in data:
+        print(
+            "  [bold yellow]Warning:[/] In environment section: 'selected_modules_and_packages' "
+            "is deprecated, use 'selected' instead."
+        )
+        data["selected"] = data.pop("selected_modules_and_packages")
 
 
 @dataclass

@@ -29,7 +29,7 @@ import os
 import sys
 from pathlib import Path
 
-from cognite_toolkit._cdf_tk.templates.data_classes import Environment, InitConfigYAML
+from cognite_toolkit._cdf_tk.data_classes import Environment, InitConfigYAML
 
 REPO_ROOT = Path(__file__).resolve().parent
 root_folder = rf"{REPO_ROOT.absolute()}"
@@ -46,7 +46,7 @@ if not Path(REPO_ROOT / "cognite_toolkit" / "config.local.yaml").exists():
             name="local",
             project="<my-project>",
             build_type="dev",
-            selected_modules_and_packages=["cdf_demo_infield", "cdf_oid_example_data"],
+            selected=["cdf_demo_infield", "cdf_oid_example_data"],
         )
     ).load_defaults(REPO_ROOT / "cognite_toolkit")
     (REPO_ROOT / "cognite_toolkit" / "config.local.yaml").write_text(config_init.dump_yaml_with_comments())

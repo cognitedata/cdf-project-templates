@@ -24,7 +24,7 @@ import tempfile
 import typing
 from abc import abstractmethod
 from collections import UserDict, defaultdict
-from collections.abc import ItemsView, KeysView, Sequence, ValuesView
+from collections.abc import ItemsView, Iterator, KeysView, Sequence, ValuesView
 from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -43,8 +43,13 @@ from cognite.client.testing import CogniteClientMock
 from rich import print
 from rich.prompt import Confirm, Prompt
 
-from cognite_toolkit._cdf_tk.constants import _RUNNING_IN_BROWSER
-from cognite_toolkit._cdf_tk.exceptions import ToolkitError, ToolkitResourceMissingError, ToolkitYAMLFormatError
+from cognite_toolkit._cdf_tk.constants import _RUNNING_IN_BROWSER, ROOT_MODULES
+from cognite_toolkit._cdf_tk.exceptions import (
+    AuthenticationError,
+    ToolkitError,
+    ToolkitResourceMissingError,
+    ToolkitYAMLFormatError,
+)
 from cognite_toolkit._version import __version__
 
 if sys.version_info < (3, 10):
@@ -185,9 +190,8 @@ class AuthVariables:
         self._set_cluster_defaults()
         self.project = reader.prompt_user("project")
         if not (self.cluster and self.project):
-            reader.status = "error"
-            reader.messages.append("  [bold red]ERROR[/]: CDF Cluster and project are required.")
-            return reader
+            missing = [field for field in ["cluster", "project"] if not getattr(self, field)]
+            raise AuthenticationError(f"CDF Cluster and project are required. Missing: {', '.join(missing)}.")
         self.cdf_url = reader.prompt_user("cdf_url", expected=f"https://{self.cluster}.cognitedata.com")
         self.login_flow = reader.prompt_user("login_flow", choices=self.login_flow_options())  # type: ignore[assignment]
         if self.login_flow == "token":
@@ -212,8 +216,7 @@ class AuthVariables:
             if self.login_flow == "client_credentials":
                 self.audience = reader.prompt_user("audience", expected=f"https://{self.cluster}.cognitedata.com")
         else:
-            reader.status = "error"
-            reader.messages.append(f"The login flow {self.login_flow} is not supported")
+            raise AuthenticationError(f"The login flow {self.login_flow} is not supported")
 
         if not skip_prompt:
             if Path(".env").exists():
@@ -296,7 +299,7 @@ class AuthReaderValidation:
 
     def __init__(self, auth_vars: AuthVariables, verbose: bool, skip_prompt: bool = False):
         self._auth_vars = auth_vars
-        self.status: Literal["ok", "error", "warning"] = "ok"
+        self.status: Literal["ok", "warning"] = "ok"
         self.messages: list[str] = []
         self.verbose = verbose
         self.skip_prompt = skip_prompt
@@ -401,33 +404,33 @@ class CDFToolConfig:
         self._client: CogniteClient | None = None
 
         global_config.disable_pypi_version_check = True
+        global_config.silence_feature_preview_warnings = True
         if _RUNNING_IN_BROWSER:
             self._initialize_in_browser()
             return
 
         auth_vars = AuthVariables.from_env(self._environ)
-        self._failed = not self.initialize_from_auth_variables(auth_vars)
+        self.initialize_from_auth_variables(auth_vars)
 
     def _initialize_in_browser(self) -> None:
         try:
             self._client = CogniteClient()
         except Exception as e:
-            print(f"[bold red]Error[/] Failed to initialize CogniteClient in browser: {e}")
-        else:
-            if self._cluster or self._project:
-                print("[bold yellow]Warning[/] Cluster and project are arguments ignored when running in the browser.")
-            self._cluster = self._client.config.base_url.removeprefix("https://").split(".", maxsplit=1)[0]
-            self._project = self._client.config.project
-            self._cdf_url = self._client.config.base_url
+            raise AuthenticationError(f"Failed to initialize CogniteClient in browser: {e}")
 
-    def initialize_from_auth_variables(self, auth: AuthVariables) -> bool:
+        if self._cluster or self._project:
+            print("[bold yellow]Warning[/] Cluster and project are arguments ignored when running in the browser.")
+        self._cluster = self._client.config.base_url.removeprefix("https://").split(".", maxsplit=1)[0]
+        self._project = self._client.config.project
+        self._cdf_url = self._client.config.base_url
+
+    def initialize_from_auth_variables(self, auth: AuthVariables) -> None:
         """Initialize the CDFToolConfig from the AuthVariables and returns whether it was successful or not."""
         cluster = auth.cluster or self._cluster
         project = auth.project or self._project
 
         if cluster is None or project is None:
-            print("  [bold red]Error[/] Cluster and Project must be set to authenticate the client.")
-            return False
+            raise AuthenticationError("Cluster and Project must be set to authenticate the client.")
 
         self._cluster = cluster
         self._project = project
@@ -435,18 +438,16 @@ class CDFToolConfig:
 
         if auth.login_flow == "token":
             if not auth.token:
-                print("  [bold red]Error[/] Login flow=token is set but no CDF_TOKEN is not provided.")
-                return False
+                raise AuthenticationError("Login flow=token is set but no CDF_TOKEN is not provided.")
             self._credentials_provider = Token(auth.token)
         elif auth.login_flow == "interactive":
             if auth.scopes:
                 self._scopes = [auth.scopes]
             if not (auth.client_id and auth.authority_url and auth.scopes):
-                print(
-                    "  [bold red]Error[/] Login flow=interactive is set but missing required authentication "
+                raise AuthenticationError(
+                    "Login flow=interactive is set but missing required authentication "
                     "variables: IDP_CLIENT_ID and IDP_TENANT_ID (or IDP_AUTHORITY_URL). Cannot authenticate the client."
                 )
-                return False
             self._credentials_provider = OAuthInteractive(
                 authority_url=auth.authority_url,
                 client_id=auth.client_id,
@@ -464,12 +465,11 @@ class CDFToolConfig:
                 self._audience = auth.audience
 
             if not (auth.token_url and auth.client_id and auth.client_secret and self._scopes and self._audience):
-                print(
-                    "  [bold yellow]Error[/] Login flow=client_credentials is set but missing required authentication "
+                raise AuthenticationError(
+                    "Login flow=client_credentials is set but missing required authentication "
                     "variables: IDP_CLIENT_ID, IDP_CLIENT_SECRET and IDP_TENANT_ID (or IDP_TOKEN_URL). "
                     "Cannot authenticate the client."
                 )
-                return False
 
             self._credentials_provider = OAuthClientCredentials(
                 token_url=auth.token_url,
@@ -479,8 +479,7 @@ class CDFToolConfig:
                 audience=self._audience,
             )
         else:
-            print(f"  [bold red]Error[/] Login flow {auth.login_flow} is not supported.")
-            return False
+            raise AuthenticationError(f"Login flow {auth.login_flow} is not supported.")
 
         self._client = CogniteClient(
             ClientConfig(
@@ -491,7 +490,6 @@ class CDFToolConfig:
             )
         )
         self._update_environment_variables()
-        return True
 
     def reinitialize_client(self) -> None:
         """Reinitialize the client with the current configuration."""
@@ -555,16 +553,6 @@ class CDFToolConfig:
         return f"Cluster {self._cluster} with project {self._project} and config:\n" + json.dumps(
             environment, indent=2, sort_keys=True
         )
-
-    @property
-    # Flag set if something that should have worked failed if a data set is
-    # loaded and/or deleted.
-    def failed(self) -> bool:
-        return self._failed
-
-    @failed.setter
-    def failed(self, value: bool) -> None:
-        self._failed = value
 
     @property
     def client(self) -> CogniteClient:
@@ -1138,3 +1126,90 @@ def tmp_build_directory() -> typing.Generator[Path, None, None]:
         yield build_dir
     finally:
         shutil.rmtree(build_dir)
+
+
+def flatten_dict(dct: dict[str, Any]) -> dict[tuple[str, ...], Any]:
+    """Flatten a dictionary to a list of tuples with the key path and value."""
+    items: dict[tuple[str, ...], Any] = {}
+    for key, value in dct.items():
+        if isinstance(value, dict):
+            for sub_key, sub_value in flatten_dict(value).items():
+                items[(key, *sub_key)] = sub_value
+        else:
+            items[(key,)] = value
+    return items
+
+
+def iterate_modules(root_dir: Path) -> Iterator[tuple[Path, list[Path]]]:
+    """Iterate over all modules in the project and yield the module directory and all files in the module.
+
+    Args:
+        root_dir (Path): The root directory of the project
+
+    Yields:
+        Iterator[tuple[Path, list[Path]]]: A tuple containing the module directory and a list of all files in the module
+
+    """
+    if root_dir.name in ROOT_MODULES:
+        yield from _iterate_modules(root_dir)
+        return
+    for root_module in ROOT_MODULES:
+        module_dir = root_dir / root_module
+        if module_dir.exists():
+            yield from _iterate_modules(module_dir)
+
+
+def _iterate_modules(root_dir: Path) -> Iterator[tuple[Path, list[Path]]]:
+    # local import to avoid circular import
+    from .constants import EXCL_FILES
+    from .loaders import LOADER_BY_FOLDER_NAME
+
+    if not root_dir.exists():
+        return
+    for module_dir in root_dir.iterdir():
+        if not module_dir.is_dir():
+            continue
+        sub_directories = [path for path in module_dir.iterdir() if path.is_dir()]
+        is_any_resource_directories = any(dir.name in LOADER_BY_FOLDER_NAME for dir in sub_directories)
+        if sub_directories and is_any_resource_directories:
+            # Module found
+            yield module_dir, [path for path in module_dir.rglob("*") if path.is_file() and path.name not in EXCL_FILES]
+            # Stop searching for modules in subdirectories
+            continue
+        yield from _iterate_modules(module_dir)
+
+
+@overload
+def module_from_path(path: Path, return_resource_folder: Literal[True]) -> tuple[str, str]: ...
+
+
+@overload
+def module_from_path(path: Path, return_resource_folder: Literal[False] = False) -> str: ...
+
+
+def module_from_path(path: Path, return_resource_folder: bool = False) -> str | tuple[str, str]:
+    """Get the module name from a path"""
+    # local import to avoid circular import
+    from .loaders import LOADER_BY_FOLDER_NAME
+
+    if len(path.parts) == 1:
+        raise ValueError("Path is not a module")
+    last_folder = path.parts[1]
+    for part in path.parts[1:]:
+        if part in LOADER_BY_FOLDER_NAME:
+            if return_resource_folder:
+                return last_folder, part
+            return last_folder
+        last_folder = part
+    raise ValueError("Path is not part of a module")
+
+
+def resource_folder_from_path(path: Path) -> str:
+    """Get the resource_folder from a path"""
+    # local import to avoid circular import
+    from .loaders import LOADER_BY_FOLDER_NAME
+
+    for part in path.parts:
+        if part in LOADER_BY_FOLDER_NAME:
+            return part
+    raise ValueError("Path does not contain a resource folder")

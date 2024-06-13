@@ -55,6 +55,9 @@ from cognite.client.data_classes import (
     FunctionScheduleWriteList,
     FunctionWrite,
     FunctionWriteList,
+    LabelDefinition,
+    LabelDefinitionList,
+    LabelDefinitionWrite,
     OidcCredentials,
     TimeSeries,
     TimeSeriesList,
@@ -62,6 +65,8 @@ from cognite.client.data_classes import (
     TimeSeriesWriteList,
     Transformation,
     TransformationList,
+    TransformationNotification,
+    TransformationNotificationList,
     TransformationSchedule,
     TransformationScheduleList,
     TransformationScheduleWrite,
@@ -80,6 +85,7 @@ from cognite.client.data_classes import (
     capabilities,
     filters,
 )
+from cognite.client.data_classes._base import T_CogniteResourceList
 from cognite.client.data_classes.capabilities import (
     Capability,
     DataModelInstancesAcl,
@@ -108,6 +114,7 @@ from cognite.client.data_classes.data_modeling import (
     DataModelApplyList,
     DataModelList,
     Node,
+    NodeApply,
     NodeApplyResultList,
     NodeList,
     Space,
@@ -143,6 +150,11 @@ from cognite.client.data_classes.iam import (
     SecurityCategoryWrite,
     SecurityCategoryWriteList,
 )
+from cognite.client.data_classes.labels import LabelDefinitionWriteList
+from cognite.client.data_classes.transformations.notifications import (
+    TransformationNotificationWrite,
+    TransformationNotificationWriteList,
+)
 from cognite.client.exceptions import CogniteAPIError, CogniteDuplicatedError, CogniteNotFoundError
 from cognite.client.utils.useful_types import SequenceNotStr
 from rich import print
@@ -167,7 +179,7 @@ from cognite_toolkit._cdf_tk.utils import (
 )
 
 from ._base_loaders import ResourceContainerLoader, ResourceLoader
-from .data_classes import LoadedNode, LoadedNodeList, RawDatabaseTable, RawTableList
+from .data_classes import NodeApplyListWithCall, RawDatabaseTable, RawTableList
 
 _MIN_TIMESTAMP_MS = -2208988800000  # 1900-01-01 00:00:00.000
 _MAX_TIMESTAMP_MS = 4102444799999  # 2099-12-31 23:59:59.999
@@ -177,6 +189,7 @@ _HAS_DATA_FILTER_LIMIT = 10
 class GroupLoader(ResourceLoader[str, GroupWrite, Group, GroupWriteList, GroupList], ABC):
     folder_name = "auth"
     filename_pattern = r"^(?!.*SecurityCategory$).*"
+    kind = "Group"
     resource_cls = Group
     resource_write_cls = GroupWrite
     list_cls = GroupList
@@ -221,6 +234,8 @@ class GroupLoader(ResourceLoader[str, GroupWrite, Group, GroupWriteList, GroupLi
 
     @classmethod
     def get_required_capability(cls, items: GroupWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return GroupsAcl(
             [GroupsAcl.Action.Read, GroupsAcl.Action.List, GroupsAcl.Action.Create, GroupsAcl.Action.Delete],
             GroupsAcl.Scope.All(),
@@ -238,19 +253,22 @@ class GroupLoader(ResourceLoader[str, GroupWrite, Group, GroupWriteList, GroupLi
             for acl, content in capability.items():
                 if scope := content.get("scope", {}):
                     if space_ids := scope.get(capabilities.SpaceIDScope._scope_name, []):
-                        for space_id in space_ids:
-                            yield SpaceLoader, space_id
+                        if isinstance(space_ids, dict) and "spaceIds" in space_ids:
+                            for space_id in space_ids["spaceIds"]:
+                                yield SpaceLoader, space_id
                     if data_set_ids := scope.get(capabilities.DataSetScope._scope_name, []):
-                        for data_set_id in data_set_ids:
-                            yield DataSetsLoader, data_set_id
+                        if isinstance(data_set_ids, dict) and "ids" in data_set_ids:
+                            for data_set_id in data_set_ids["ids"]:
+                                yield DataSetsLoader, data_set_id
                     if table_ids := scope.get(capabilities.TableScope._scope_name, []):
                         for db_name, tables in table_ids.get("dbsToTables", {}).items():
                             yield RawDatabaseLoader, RawDatabaseTable(db_name)
                             for table in tables:
-                                yield RawDatabaseLoader, RawDatabaseTable(db_name, table)
+                                yield RawTableLoader, RawDatabaseTable(db_name, table)
                     if extraction_pipeline_ids := scope.get(capabilities.ExtractionPipelineScope._scope_name, []):
-                        for extraction_pipeline_id in extraction_pipeline_ids:
-                            yield ExtractionPipelineLoader, extraction_pipeline_id
+                        if isinstance(extraction_pipeline_ids, dict) and "ids" in extraction_pipeline_ids:
+                            for extraction_pipeline_id in extraction_pipeline_ids["ids"]:
+                                yield ExtractionPipelineLoader, extraction_pipeline_id
                     if (ids := scope.get(capabilities.IDScope._scope_name, [])) or (
                         ids := scope.get(capabilities.IDScopeLowerCase._scope_name, [])
                     ):
@@ -261,8 +279,8 @@ class GroupLoader(ResourceLoader[str, GroupWrite, Group, GroupWriteList, GroupLi
                             loader = ExtractionPipelineLoader
                         elif acl == capabilities.TimeSeriesAcl._capability_name:
                             loader = TimeSeriesLoader
-                        if loader is not None:
-                            for id_ in ids:
+                        if loader is not None and isinstance(ids, dict) and "ids" in ids:
+                            for id_ in ids["ids"]:
                                 yield loader, id_
 
     @classmethod
@@ -435,11 +453,12 @@ class GroupAllScopedLoader(GroupLoader):
 class SecurityCategoryLoader(
     ResourceLoader[str, SecurityCategoryWrite, SecurityCategory, SecurityCategoryWriteList, SecurityCategoryList]
 ):
-    filename_pattern = r"^.*\.SecurityCategory$"  # Matches all yaml files who's stem ends with *.SecurityCategory.
+    filename_pattern = r"^.*SecurityCategory$"  # Matches all yaml files who's stem ends with *SecurityCategory.
     resource_cls = SecurityCategory
     resource_write_cls = SecurityCategoryWrite
     list_cls = SecurityCategoryList
     list_write_cls = SecurityCategoryWriteList
+    kind = "SecurityCategory"
     folder_name = "auth"
     dependencies = frozenset({GroupAllScopedLoader})
     _doc_url = "Security-categories/operation/createSecurityCategories"
@@ -474,6 +493,8 @@ class SecurityCategoryLoader(
 
     @classmethod
     def get_required_capability(cls, items: SecurityCategoryWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return SecurityCategoriesAcl(
             actions=[
                 SecurityCategoriesAcl.Action.Create,
@@ -518,11 +539,14 @@ class DataSetsLoader(ResourceLoader[str, DataSetWrite, DataSet, DataSetWriteList
     resource_write_cls = DataSetWrite
     list_cls = DataSetList
     list_write_cls = DataSetWriteList
+    kind = "DataSet"
     dependencies = frozenset({GroupAllScopedLoader})
     _doc_url = "Data-sets/operation/createDataSets"
 
     @classmethod
-    def get_required_capability(cls, items: DataSetWriteList) -> Capability:
+    def get_required_capability(cls, items: DataSetWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return DataSetsAcl(
             [DataSetsAcl.Action.Read, DataSetsAcl.Action.Write],
             DataSetsAcl.Scope.All(),
@@ -609,6 +633,99 @@ class DataSetsLoader(ResourceLoader[str, DataSetWrite, DataSet, DataSetWriteList
 
 
 @final
+class LabelLoader(
+    ResourceLoader[str, LabelDefinitionWrite, LabelDefinition, LabelDefinitionWriteList, LabelDefinitionList]
+):
+    folder_name = "labels"
+    filename_pattern = r"^.*Label$"  # Matches all yaml files whose stem ends with *Label.
+    resource_cls = LabelDefinition
+    resource_write_cls = LabelDefinitionWrite
+    list_cls = LabelDefinitionList
+    list_write_cls = LabelDefinitionWriteList
+    kind = "Label"
+    dependencies = frozenset({DataSetsLoader, GroupAllScopedLoader})
+    _doc_url = "Labels/operation/createLabelDefinitions"
+
+    @classmethod
+    def get_id(cls, item: LabelDefinition | LabelDefinitionWrite | dict) -> str:
+        if isinstance(item, dict):
+            return item["externalId"]
+        if not item.external_id:
+            raise ToolkitRequiredValueError("LabelDefinition must have external_id set.")
+        return item.external_id
+
+    @classmethod
+    def get_required_capability(cls, items: LabelDefinitionWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
+        data_set_ids = {item.data_set_id for item in items if item.data_set_id}
+        scope = (
+            capabilities.LabelsAcl.Scope.DataSet(list(data_set_ids))
+            if data_set_ids
+            else capabilities.LabelsAcl.Scope.All()
+        )
+
+        return capabilities.LabelsAcl(
+            [capabilities.LabelsAcl.Action.Read, capabilities.LabelsAcl.Action.Write],
+            scope,  # type: ignore[arg-type]
+        )
+
+    def create(self, items: LabelDefinitionWriteList) -> LabelDefinitionList:
+        return self.client.labels.create(items)
+
+    def retrieve(self, ids: SequenceNotStr[str]) -> LabelDefinitionList:
+        return self.client.labels.retrieve(ids, ignore_unknown_ids=True)
+
+    def update(self, items: T_CogniteResourceList) -> LabelDefinitionList:
+        existing = self.client.labels.retrieve([item.external_id for item in items])
+        if existing:
+            self.delete([item.external_id for item in items])
+        return self.client.labels.create(items)
+
+    def delete(self, ids: SequenceNotStr[str]) -> int:
+        try:
+            self.client.labels.delete(ids)
+        except (CogniteAPIError, CogniteNotFoundError) as e:
+            non_existing = set(e.failed or [])
+            if existing := [id_ for id_ in ids if id_ not in non_existing]:
+                self.client.labels.delete(existing)
+            return len(existing)
+        else:
+            # All deleted successfully
+            return len(ids)
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def get_write_cls_parameter_spec(cls) -> ParameterSpecSet:
+        spec = super().get_write_cls_parameter_spec()
+        # Added by toolkit
+        spec.add(ParameterSpec(("dataSetExternalId",), frozenset({"str"}), is_required=False, _is_nullable=False))
+        return spec
+
+    @classmethod
+    def get_dependent_items(cls, item: dict) -> Iterable[tuple[type[ResourceLoader], Hashable]]:
+        """Returns all items that this item requires.
+
+        For example, a TimeSeries requires a DataSet, so this method would return the
+        DatasetLoader and identifier of that dataset.
+        """
+        if "dataSetExternalId" in item:
+            yield DataSetsLoader, item["dataSetExternalId"]
+
+    def load_resource(
+        self, filepath: Path, ToolGlobals: CDFToolConfig, skip_validation: bool
+    ) -> LabelDefinitionWrite | LabelDefinitionWriteList | None:
+        raw_yaml = load_yaml_inject_variables(filepath, ToolGlobals.environment_variables())
+        items: list[dict[str, Any]] = [raw_yaml] if isinstance(raw_yaml, dict) else raw_yaml
+        for item in items:
+            if "dataSetExternalId" in item:
+                ds_external_id = item.pop("dataSetExternalId")
+                item["dataSetId"] = ToolGlobals.verify_dataset(ds_external_id, skip_validation=skip_validation)
+        loaded = LabelDefinitionWriteList.load(items)
+        return loaded[0] if isinstance(raw_yaml, dict) else loaded
+
+
+@final
 class FunctionLoader(ResourceLoader[str, FunctionWrite, Function, FunctionWriteList, FunctionList]):
     support_drop = True
     folder_name = "functions"
@@ -619,11 +736,14 @@ class FunctionLoader(ResourceLoader[str, FunctionWrite, Function, FunctionWriteL
     resource_write_cls = FunctionWrite
     list_cls = FunctionList
     list_write_cls = FunctionWriteList
+    kind = "Function"
     dependencies = frozenset({DataSetsLoader, GroupAllScopedLoader})
     _doc_url = "Functions/operation/postFunctions"
 
     @classmethod
-    def get_required_capability(cls, items: FunctionWriteList) -> list[Capability]:
+    def get_required_capability(cls, items: FunctionWriteList) -> list[Capability] | list[Capability]:
+        if not items:
+            return []
         return [
             FunctionsAcl([FunctionsAcl.Action.Read, FunctionsAcl.Action.Write], FunctionsAcl.Scope.All()),
             FilesAcl(
@@ -647,6 +767,11 @@ class FunctionLoader(ResourceLoader[str, FunctionWrite, Function, FunctionWriteL
     def load_resource(
         self, filepath: Path, ToolGlobals: CDFToolConfig, skip_validation: bool
     ) -> FunctionWrite | FunctionWriteList | None:
+        if filepath.parent.name != self.folder_name:
+            # Functions configs needs to be in the root function folder.
+            # Thi is to allow arbitrary YAML files inside the function code folder.
+            return None
+
         functions = load_yaml_inject_variables(filepath, ToolGlobals.environment_variables())
 
         if isinstance(functions, dict):
@@ -815,16 +940,23 @@ class FunctionScheduleLoader(
     ResourceLoader[str, FunctionScheduleWrite, FunctionSchedule, FunctionScheduleWriteList, FunctionSchedulesList]
 ):
     folder_name = "functions"
-    filename_pattern = r"^.*schedule.*$"  # Matches all yaml files who's stem contain *.schedule.
+    filename_pattern = r"^.*schedule.*$"  # Matches all yaml files who's stem contain *.schedule
     resource_cls = FunctionSchedule
     resource_write_cls = FunctionScheduleWrite
     list_cls = FunctionSchedulesList
     list_write_cls = FunctionScheduleWriteList
+    kind = "Schedule"
     dependencies = frozenset({FunctionLoader})
     _doc_url = "Function-schedules/operation/postFunctionSchedules"
 
+    @property
+    def display_name(self) -> str:
+        return "function.schedules"
+
     @classmethod
     def get_required_capability(cls, items: FunctionScheduleWriteList) -> list[Capability]:
+        if not items:
+            return []
         return [
             FunctionsAcl([FunctionsAcl.Action.Read, FunctionsAcl.Action.Write], FunctionsAcl.Scope.All()),
             SessionsAcl(
@@ -948,6 +1080,7 @@ class RawDatabaseLoader(
     resource_write_cls = RawDatabaseTable
     list_cls = RawTableList
     list_write_cls = RawTableList
+    kind = "Database"
     dependencies = frozenset({GroupAllScopedLoader})
     _doc_url = "Raw/operation/createDBs"
 
@@ -955,8 +1088,14 @@ class RawDatabaseLoader(
         super().__init__(client, build_dir)
         self._loaded_db_names: set[str] = set()
 
+    @property
+    def display_name(self) -> str:
+        return "raw.databases"
+
     @classmethod
-    def get_required_capability(cls, items: RawTableList) -> Capability:
+    def get_required_capability(cls, items: RawTableList) -> Capability | list[Capability]:
+        if not items:
+            return []
         tables_by_database = defaultdict(list)
         for item in items:
             tables_by_database[item.db_name].append(item.table_name)
@@ -1050,6 +1189,7 @@ class RawTableLoader(
     resource_write_cls = RawDatabaseTable
     list_cls = RawTableList
     list_write_cls = RawTableList
+    kind = "Table"
     dependencies = frozenset({RawDatabaseLoader, GroupAllScopedLoader})
     _doc_url = "Raw/operation/createTables"
 
@@ -1057,8 +1197,14 @@ class RawTableLoader(
         super().__init__(client, build_dir)
         self._printed_warning = False
 
+    @property
+    def display_name(self) -> str:
+        return "raw.tables"
+
     @classmethod
-    def get_required_capability(cls, items: RawTableList) -> Capability:
+    def get_required_capability(cls, items: RawTableList) -> Capability | list[Capability]:
+        if not items:
+            return []
         tables_by_database = defaultdict(list)
         for item in items:
             tables_by_database[item.db_name].append(item.table_name)
@@ -1175,11 +1321,15 @@ class TimeSeriesLoader(ResourceContainerLoader[str, TimeSeriesWrite, TimeSeries,
     resource_write_cls = TimeSeriesWrite
     list_cls = TimeSeriesList
     list_write_cls = TimeSeriesWriteList
+    kind = "TimeSeries"
     dependencies = frozenset({DataSetsLoader, GroupAllScopedLoader})
     _doc_url = "Time-series/operation/postTimeSeries"
 
     @classmethod
-    def get_required_capability(cls, items: TimeSeriesWriteList) -> Capability:
+    def get_required_capability(cls, items: TimeSeriesWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
+
         dataset_ids = {item.data_set_id for item in items if item.data_set_id}
 
         scope = TimeSeriesAcl.Scope.DataSet(list(dataset_ids)) if dataset_ids else TimeSeriesAcl.Scope.All()
@@ -1292,12 +1442,19 @@ class DatapointSubscriptionLoader(
     ]
 ):
     folder_name = "timeseries"
-    filename_pattern = r"^.*\.DatapointSubscription$"  # Matches all yaml files who's endswith *.DatapointSubscription.
+    filename_pattern = r"^.*DatapointSubscription$"  # Matches all yaml files who end with *DatapointSubscription.
     resource_cls = DatapointSubscription
     resource_write_cls = DataPointSubscriptionWrite
     list_cls = DatapointSubscriptionList
     list_write_cls = DatapointSubscriptionWriteList
+    kind = "DatapointSubscription"
     _doc_url = "Data-point-subscriptions/operation/postSubscriptions"
+    dependencies = frozenset(
+        {
+            TimeSeriesLoader,
+            GroupAllScopedLoader,
+        }
+    )
 
     @property
     def display_name(self) -> str:
@@ -1336,9 +1493,17 @@ class DatapointSubscriptionLoader(
 
     @classmethod
     def get_required_capability(cls, items: DatapointSubscriptionWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
+        data_set_ids = {item.data_set_id for item in items if item.data_set_id}
+        scope = (
+            TimeSeriesSubscriptionsAcl.Scope.DataSet(list(data_set_ids))
+            if data_set_ids
+            else TimeSeriesSubscriptionsAcl.Scope.All()
+        )
         return TimeSeriesSubscriptionsAcl(
             [TimeSeriesSubscriptionsAcl.Action.Read, TimeSeriesSubscriptionsAcl.Action.Write],
-            TimeSeriesSubscriptionsAcl.Scope.All(),
+            scope,  # type: ignore[arg-type]
         )
 
     def create(self, items: DatapointSubscriptionWriteList) -> DatapointSubscriptionList:
@@ -1399,17 +1564,21 @@ class TransformationLoader(
 ):
     folder_name = "transformations"
     filename_pattern = (
-        r"^(?:(?!\.schedule).)*$"  # Matches all yaml files except file names who's stem contain *.schedule.
+        # Matches all yaml files except file names whose stem contain *.schedule. or .Notification
+        r"^(?!.*schedule.*|.*\.notification$).*$"
     )
     resource_cls = Transformation
     resource_write_cls = TransformationWrite
     list_cls = TransformationList
     list_write_cls = TransformationWriteList
+    kind = "Transformation"
     dependencies = frozenset({DataSetsLoader, RawDatabaseLoader, GroupAllScopedLoader})
     _doc_url = "Transformations/operation/createTransformations"
 
     @classmethod
-    def get_required_capability(cls, items: TransformationWriteList) -> Capability:
+    def get_required_capability(cls, items: TransformationWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
         data_set_ids = {item.data_set_id for item in items if item.data_set_id}
 
         scope = TransformationsAcl.Scope.DataSet(list(data_set_ids)) if data_set_ids else TransformationsAcl.Scope.All()
@@ -1436,6 +1605,8 @@ class TransformationLoader(
                 yield RawDatabaseLoader, RawDatabaseTable(destination["database"])
                 yield RawTableLoader, RawDatabaseTable(destination["database"], destination["table"])
             elif destination.get("type") in ("nodes", "edges") and (view := destination.get("view", {})):
+                if space := destination.get("instanceSpace"):
+                    yield SpaceLoader, space
                 if _in_dict(("space", "externalId", "version"), view):
                     yield ViewLoader, ViewId.load(view)
             elif destination.get("type") == "instances":
@@ -1624,13 +1795,19 @@ class TransformationScheduleLoader(
     ]
 ):
     folder_name = "transformations"
-    filename_pattern = r"^.*\.schedule$"  # Matches all yaml files who's stem contain *.schedule.
+    # Matches all yaml files whose stem contains *schedule or *TransformationSchedule.
+    filename_pattern = r"^.*schedule$"
     resource_cls = TransformationSchedule
     resource_write_cls = TransformationScheduleWrite
     list_cls = TransformationScheduleList
     list_write_cls = TransformationScheduleWriteList
+    kind = "Schedule"
     dependencies = frozenset({TransformationLoader})
     _doc_url = "Transformation-Schedules/operation/createTransformationSchedules"
+
+    @property
+    def display_name(self) -> str:
+        return "transformation.schedules"
 
     @classmethod
     def get_required_capability(cls, items: TransformationScheduleWriteList) -> list[Capability]:
@@ -1688,6 +1865,116 @@ class TransformationScheduleLoader(
 
 
 @final
+class TransformationNotificationLoader(
+    ResourceLoader[
+        str,
+        TransformationNotificationWrite,
+        TransformationNotification,
+        TransformationNotificationWriteList,
+        TransformationNotificationList,
+    ]
+):
+    folder_name = "transformations"
+    # Matches all yaml files whose stem ends with *Notification.
+    filename_pattern = r"^.*Notification$"
+    resource_cls = TransformationNotification
+    resource_write_cls = TransformationNotificationWrite
+    list_cls = TransformationNotificationList
+    list_write_cls = TransformationNotificationWriteList
+    kind = "Notification"
+    dependencies = frozenset({TransformationLoader})
+    _doc_url = "Transformation-Notifications/operation/createTransformationNotifications"
+
+    @property
+    def display_name(self) -> str:
+        return "transformation.notifications"
+
+    @classmethod
+    def get_id(cls, item: TransformationNotification | TransformationNotificationWrite | dict) -> str:
+        if isinstance(item, dict):
+            if missing := tuple(k for k in {"transformationExternalId", "destination"} if k not in item):
+                # We need to raise a KeyError with all missing keys to get the correct error message.
+                raise KeyError(*missing)
+            return f"{item['transformationExternalId']}:{item['destination']}"
+
+        return f"{item.transformation_external_id}:{item.destination}"
+
+    @classmethod
+    def get_required_capability(cls, items: TransformationNotificationWriteList) -> Capability | list[Capability]:
+        # Access for transformation notification is checked by the transformation that is deployed
+        # first, so we don't need to check for any capabilities here.
+        return []
+
+    def create(self, items: TransformationNotificationWriteList) -> TransformationNotificationList:
+        # Todo bug in SDK not accepting TransformationNotificationWrite
+        return self.client.transformations.notifications.create(items)  # type: ignore[return-value]
+
+    def retrieve(self, ids: SequenceNotStr[str]) -> TransformationNotificationList:
+        retrieved = TransformationNotificationList([])
+        for id_ in ids:
+            try:
+                transformation_external_id, destination = id_.split(":")
+            except ValueError:
+                # This should never happen, and is a bug in the toolkit if it occurs. Creating a nice error message
+                # here so that if it does happen, it will be easier to debug.
+                raise ValueError(
+                    f"Invalid externalId: {id_}. Must be in the format 'transformationExternalId:destination'"
+                )
+            result = self.client.transformations.notifications.list(
+                transformation_external_id=transformation_external_id, destination=destination, limit=-1
+            )
+            retrieved.extend(result)
+        return retrieved
+
+    def update(self, items: TransformationNotificationWriteList) -> TransformationNotificationList:
+        # Note that since a notification is identified by the combination of transformationExternalId and destination,
+        # which is the entire object, an update should never happen. However, implementing just in case.
+        item_by_id = {self.get_id(item): item for item in items}
+        existing = self.retrieve(list(item_by_id.keys()))
+        exiting_by_id = {self.get_id(item): item for item in existing}
+        create: list[TransformationNotificationWrite] = []
+        unchanged: list[str] = []
+        delete: list[int] = []
+        for id_, item in item_by_id.items():
+            existing_item = exiting_by_id.get(id_)
+            if existing_item and self.are_equal(item, existing_item):
+                unchanged.append(self.get_id(existing_item))
+            else:
+                create.append(item)
+            if existing_item:
+                delete.append(cast(int, existing_item.id))
+        if delete:
+            self.client.transformations.notifications.delete(delete)
+        updated_by_id: dict[str, TransformationNotification] = {}
+        if create:
+            # Bug in SDK
+            created = self.client.transformations.notifications.create(create)  # type: ignore[arg-type]
+            updated_by_id.update({self.get_id(item): item for item in created})  # type: ignore[union-attr]
+        if unchanged:
+            updated_by_id.update({id_: exiting_by_id[id_] for id_ in unchanged})
+        return TransformationNotificationList([updated_by_id[id_] for id_ in item_by_id.keys()])
+
+    def delete(self, ids: SequenceNotStr[str]) -> int:
+        # Note that it is theoretically possible that more items will be deleted than
+        # input ids. This is because TransformationNotifications are identified by an internal id,
+        # while the toolkit uses the transformationExternalId + destination as the id. Thus, there could
+        # be multiple notifications for the same transformationExternalId + destination.
+        if existing := self.retrieve(ids):
+            self.client.transformations.notifications.delete([item.id for item in existing])  # type: ignore[misc]
+        return len(existing)
+
+    @classmethod
+    def get_dependent_items(cls, item: dict) -> Iterable[tuple[type[ResourceLoader], Hashable]]:
+        """Returns all items that this item requires.
+
+        For example, a TimeSeries requires a DataSet, so this method would return the
+        DatasetLoader and identifier of that dataset.
+        """
+        if "transformationExternalId" in item:
+            yield TransformationLoader, item["transformationExternalId"]
+
+
+@final
 class ExtractionPipelineLoader(
     ResourceLoader[
         str, ExtractionPipelineWrite, ExtractionPipeline, ExtractionPipelineWriteList, ExtractionPipelineList
@@ -1699,11 +1986,14 @@ class ExtractionPipelineLoader(
     resource_write_cls = ExtractionPipelineWrite
     list_cls = ExtractionPipelineList
     list_write_cls = ExtractionPipelineWriteList
+    kind = "ExtractionPipeline"
     dependencies = frozenset({DataSetsLoader, RawDatabaseLoader, RawTableLoader, GroupAllScopedLoader})
     _doc_url = "Extraction-Pipelines/operation/createExtPipes"
 
     @classmethod
-    def get_required_capability(cls, items: ExtractionPipelineWriteList) -> Capability:
+    def get_required_capability(cls, items: ExtractionPipelineWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
         data_set_id = {item.data_set_id for item in items if item.data_set_id}
 
         scope = (
@@ -1727,12 +2017,15 @@ class ExtractionPipelineLoader(
 
     @classmethod
     def get_dependent_items(cls, item: dict) -> Iterable[tuple[type[ResourceLoader], Hashable]]:
+        seen_databases: set[str] = set()
         if "dataSetExternalId" in item:
             yield DataSetsLoader, item["dataSetExternalId"]
         if "rawTables" in item:
             for entry in item["rawTables"]:
-                if "dbName" in entry:
-                    yield RawDatabaseLoader, RawDatabaseTable(db_name=entry["dbName"])
+                if db := entry.get("dbName"):
+                    if db not in seen_databases:
+                        seen_databases.add(db)
+                        yield RawDatabaseLoader, RawDatabaseTable(db_name=db)
                     if "tableName" in entry:
                         yield RawTableLoader, RawDatabaseTable._load(entry)
 
@@ -1838,13 +2131,18 @@ class ExtractionPipelineConfigLoader(
     ]
 ):
     folder_name = "extraction_pipelines"
-    filename_pattern = r"^.*\.config$"
+    filename_pattern = r"^.*config$"
     resource_cls = ExtractionPipelineConfig
     resource_write_cls = ExtractionPipelineConfigWrite
     list_cls = ExtractionPipelineConfigList
     list_write_cls = ExtractionPipelineConfigWriteList
+    kind = "Config"
     dependencies = frozenset({ExtractionPipelineLoader})
     _doc_url = "Extraction-Pipelines-Config/operation/createExtPipeConfig"
+
+    @property
+    def display_name(self) -> str:
+        return "extraction_pipeline.config"
 
     @classmethod
     def get_required_capability(cls, items: ExtractionPipelineConfigWriteList) -> list[Capability]:
@@ -1892,7 +2190,10 @@ class ExtractionPipelineConfigLoader(
         for item in items:
             if not item.external_id:
                 raise ToolkitRequiredValueError("ExtractionPipelineConfig must have external_id set.")
-            latest = self.client.extraction_pipelines.config.retrieve(item.external_id)
+            try:
+                latest = self.client.extraction_pipelines.config.retrieve(item.external_id)
+            except CogniteAPIError:
+                latest = None
             if latest and self.are_equal(item, latest):
                 updated.append(latest)
                 continue
@@ -1957,7 +2258,8 @@ class FileMetadataLoader(
     resource_write_cls = FileMetadataWrite
     list_cls = FileMetadataList
     list_write_cls = FileMetadataWriteList
-    dependencies = frozenset({DataSetsLoader, GroupAllScopedLoader})
+    kind = "FileMetadata"
+    dependencies = frozenset({DataSetsLoader, GroupAllScopedLoader, LabelLoader})
 
     _doc_url = "Files/operation/initFileUpload"
 
@@ -1966,7 +2268,9 @@ class FileMetadataLoader(
         return "file_metadata"
 
     @classmethod
-    def get_required_capability(cls, items: FileMetadataWriteList) -> Capability:
+    def get_required_capability(cls, items: FileMetadataWriteList) -> Capability | list[Capability]:
+        if not items:
+            return []
         data_set_ids = {item.data_set_id for item in items if item.data_set_id}
 
         scope = FilesAcl.Scope.DataSet(list(data_set_ids)) if data_set_ids else FilesAcl.Scope.All()
@@ -1988,6 +2292,12 @@ class FileMetadataLoader(
         if "securityCategoryNames" in item:
             for security_category in item["securityCategoryNames"]:
                 yield SecurityCategoryLoader, security_category
+        if "labels" in item:
+            for label in item["labels"]:
+                if isinstance(label, dict):
+                    yield LabelLoader, label["externalId"]
+                elif isinstance(label, str):
+                    yield LabelLoader, label
 
     def load_resource(
         self, filepath: Path, ToolGlobals: CDFToolConfig, skip_validation: bool
@@ -2116,11 +2426,12 @@ class FileMetadataLoader(
 class SpaceLoader(ResourceContainerLoader[str, SpaceApply, Space, SpaceApplyList, SpaceList]):
     item_name = "nodes and edges"
     folder_name = "data_models"
-    filename_pattern = r"^.*\.?(space)$"
+    filename_pattern = r"^.*space$"
     resource_cls = Space
     resource_write_cls = SpaceApply
     list_write_cls = SpaceApplyList
     list_cls = SpaceList
+    kind = "Space"
     dependencies = frozenset({GroupAllScopedLoader})
     _doc_url = "Spaces/operation/ApplySpaces"
 
@@ -2129,7 +2440,9 @@ class SpaceLoader(ResourceContainerLoader[str, SpaceApply, Space, SpaceApplyList
         return "spaces"
 
     @classmethod
-    def get_required_capability(cls, items: SpaceApplyList) -> list[Capability]:
+    def get_required_capability(cls, items: SpaceApplyList) -> list[Capability] | list[Capability]:
+        if not items:
+            return []
         return [
             DataModelsAcl(
                 [DataModelsAcl.Action.Read, DataModelsAcl.Action.Write],
@@ -2244,18 +2557,23 @@ class ContainerLoader(
 ):
     item_name = "nodes and edges"
     folder_name = "data_models"
-    filename_pattern = r"^.*\.?(container)$"
+    filename_pattern = r"^.*container$"
     resource_cls = Container
     resource_write_cls = ContainerApply
     list_cls = ContainerList
     list_write_cls = ContainerApplyList
+    kind = "Container"
     dependencies = frozenset({SpaceLoader})
-
-    _display_name = "containers"
     _doc_url = "Containers/operation/ApplyContainers"
 
+    @property
+    def display_name(self) -> str:
+        return "containers"
+
     @classmethod
-    def get_required_capability(cls, items: ContainerApplyList) -> Capability:
+    def get_required_capability(cls, items: ContainerApplyList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return DataModelsAcl(
             [DataModelsAcl.Action.Read, DataModelsAcl.Action.Write],
             DataModelsAcl.Scope.SpaceID(list({item.space for item in items})),
@@ -2364,10 +2682,14 @@ class ContainerLoader(
 
     def are_equal(self, local: ContainerApply, remote: Container) -> bool:
         local_dumped = local.dump(camel_case=True)
+        # 'usedFor' and 'cursorable' have default values set on the server side,
+        # but not when loading the container using the SDK. Thus, we set the default
+        # values here if they are not present.
         if "usedFor" not in local_dumped:
-            # Setting used_for to "node" as it is the default value in the CDF and will be set by
-            # the server side if it is not set.
             local_dumped["usedFor"] = "node"
+        for index in local_dumped.get("indexes", {}).values():
+            if "cursorable" not in index:
+                index["cursorable"] = False
 
         return local_dumped == remote.as_write().dump(camel_case=True)
 
@@ -2398,6 +2720,13 @@ class ContainerLoader(
                         _is_nullable=False,
                     ),
                     ParameterSpec(
+                        # direct relations with constraint
+                        ("properties", ANY_STR, "type", "container", "type"),
+                        frozenset({"str"}),
+                        is_required=True,
+                        _is_nullable=False,
+                    ),
+                    ParameterSpec(
                         ("constraints", ANY_STR, "constraintType"),
                         frozenset({"str"}),
                         is_required=True,
@@ -2420,14 +2749,13 @@ class ContainerLoader(
 
 class ViewLoader(ResourceLoader[ViewId, ViewApply, View, ViewApplyList, ViewList]):
     folder_name = "data_models"
-    filename_pattern = r"^.*\.?(view)$"
+    filename_pattern = r"^.*view$"
     resource_cls = View
     resource_write_cls = ViewApply
     list_cls = ViewList
     list_write_cls = ViewApplyList
+    kind = "View"
     dependencies = frozenset({SpaceLoader, ContainerLoader})
-
-    _display_name = "views"
     _doc_url = "Views/operation/ApplyViews"
 
     def __init__(self, client: CogniteClient, build_dir: Path) -> None:
@@ -2435,8 +2763,14 @@ class ViewLoader(ResourceLoader[ViewId, ViewApply, View, ViewApplyList, ViewList
         # Caching to avoid multiple lookups on the same interfaces.
         self._interfaces_by_id: dict[ViewId, View] = {}
 
+    @property
+    def display_name(self) -> str:
+        return "views"
+
     @classmethod
-    def get_required_capability(cls, items: ViewApplyList) -> Capability:
+    def get_required_capability(cls, items: ViewApplyList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return DataModelsAcl(
             [DataModelsAcl.Action.Read, DataModelsAcl.Action.Write],
             DataModelsAcl.Scope.SpaceID(list({item.space for item in items})),
@@ -2535,7 +2869,13 @@ class ViewLoader(ResourceLoader[ViewId, ViewApply, View, ViewApplyList, ViewList
             if len(item.path) >= length + 1 and item.path[:length] == parameter_path[:length]:
                 # Add extra ANY_STR layer
                 # The spec class is immutable, so we use this trick to modify it.
-                object.__setattr__(item, "path", item.path[:length] + (ANY_STR,) + item.path[length:])
+                is_has_data_filter = item.path[1] in ["containers", "views"]
+                if is_has_data_filter:
+                    # Special handling of the HasData filter that deviates in SDK implementation from API Spec.
+                    object.__setattr__(item, "path", item.path[:length] + (ANY_STR,) + item.path[length + 1 :])
+                else:
+                    object.__setattr__(item, "path", item.path[:length] + (ANY_STR,) + item.path[length:])
+
         spec.add(ParameterSpec(("filter", ANY_STR), frozenset({"dict"}), is_required=False, _is_nullable=False))
         # The following types are used by the SDK to load the correct class. They are not part of the init,
         # so we need to add it manually.
@@ -2569,7 +2909,35 @@ class ViewLoader(ResourceLoader[ViewId, ViewApply, View, ViewApplyList, ViewList
                         is_required=True,
                         _is_nullable=False,
                     ),
+                    ParameterSpec(
+                        ("properties", ANY_STR, "through", "source", "type"),
+                        frozenset({"str"}),
+                        is_required=True,
+                        _is_nullable=False,
+                    ),
+                    ParameterSpec(
+                        # In the SDK this is called "property"
+                        ("properties", ANY_STR, "through", "identifier"),
+                        frozenset({"str"}),
+                        is_required=True,
+                        _is_nullable=False,
+                    ),
+                    ParameterSpec(
+                        ("filter", "hasData", ANY_INT, "type"),
+                        frozenset({"str"}),
+                        is_required=True,
+                        _is_nullable=False,
+                    ),
                 }
+            )
+        )
+        spec.discard(
+            ParameterSpec(
+                # The API spec calls this "identifier", while the SDK calls it "property".
+                ("properties", ANY_STR, "through", "property"),
+                frozenset({"str"}),
+                is_required=True,
+                _is_nullable=False,
             )
         )
         return spec
@@ -2578,11 +2946,12 @@ class ViewLoader(ResourceLoader[ViewId, ViewApply, View, ViewApplyList, ViewList
 @final
 class DataModelLoader(ResourceLoader[DataModelId, DataModelApply, DataModel, DataModelApplyList, DataModelList]):
     folder_name = "data_models"
-    filename_pattern = r"^.*\.?(datamodel)$"
+    filename_pattern = r"^.*datamodel$"
     resource_cls = DataModel
     resource_write_cls = DataModelApply
     list_cls = DataModelList
     list_write_cls = DataModelApplyList
+    kind = "DataModel"
     dependencies = frozenset({SpaceLoader, ViewLoader})
     _doc_url = "Data-models/operation/createDataModels"
 
@@ -2591,7 +2960,9 @@ class DataModelLoader(ResourceLoader[DataModelId, DataModelApply, DataModel, Dat
         return "data models"
 
     @classmethod
-    def get_required_capability(cls, items: DataModelApplyList) -> Capability:
+    def get_required_capability(cls, items: DataModelApplyList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return DataModelsAcl(
             [DataModelsAcl.Action.Read, DataModelsAcl.Action.Write],
             DataModelsAcl.Scope.SpaceID(list({item.space for item in items})),
@@ -2661,14 +3032,15 @@ class DataModelLoader(ResourceLoader[DataModelId, DataModelApply, DataModel, Dat
 
 
 @final
-class NodeLoader(ResourceContainerLoader[NodeId, LoadedNode, Node, LoadedNodeList, NodeList]):
+class NodeLoader(ResourceContainerLoader[NodeId, NodeApply, Node, NodeApplyListWithCall, NodeList]):
     item_name = "nodes"
     folder_name = "data_models"
-    filename_pattern = r"^.*\.?(node)$"
+    filename_pattern = r"^.*node$"
     resource_cls = Node
-    resource_write_cls = LoadedNode
+    resource_write_cls = NodeApply
     list_cls = NodeList
-    list_write_cls = LoadedNodeList
+    list_write_cls = NodeApplyListWithCall
+    kind = "Node"
     dependencies = frozenset({SpaceLoader, ViewLoader, ContainerLoader})
     _doc_url = "Instances/operation/applyNodeAndEdges"
 
@@ -2677,14 +3049,16 @@ class NodeLoader(ResourceContainerLoader[NodeId, LoadedNode, Node, LoadedNodeLis
         return "nodes"
 
     @classmethod
-    def get_required_capability(cls, items: LoadedNodeList) -> Capability:
+    def get_required_capability(cls, items: NodeApplyListWithCall) -> Capability | list[Capability]:
+        if not items:
+            return []
         return DataModelInstancesAcl(
             [DataModelInstancesAcl.Action.Read, DataModelInstancesAcl.Action.Write],
-            DataModelInstancesAcl.Scope.SpaceID(list({item.node.space for item in items})),
+            DataModelInstancesAcl.Scope.SpaceID(list({item.space for item in items})),
         )
 
     @classmethod
-    def get_id(cls, item: LoadedNode | Node | dict) -> NodeId:
+    def get_id(cls, item: NodeApply | Node | dict) -> NodeId:
         if isinstance(item, dict):
             if missing := tuple(k for k in {"space", "externalId"} if k not in item):
                 # We need to raise a KeyError with all missing keys to get the correct error message.
@@ -2703,17 +3077,20 @@ class NodeLoader(ResourceContainerLoader[NodeId, LoadedNode, Node, LoadedNodeLis
                 elif identifier.get("type") == "container" and _in_dict(("space", "externalId"), identifier):
                     yield ContainerLoader, ContainerId(identifier["space"], identifier["externalId"])
 
-    def are_equal(self, local: LoadedNode, cdf_resource: Node) -> bool:
+    @classmethod
+    def create_empty_of(cls, items: NodeApplyListWithCall) -> NodeApplyListWithCall:
+        return NodeApplyListWithCall([], items.api_call)
+
+    def are_equal(self, local: NodeApply, cdf_resource: Node) -> bool:
         """Comparison for nodes to include properties in the comparison
 
         Note this is an expensive operation as we to an extra retrieve to fetch the properties.
         Thus, the cdf-tk should not be used to upload nodes that are data only nodes used for configuration.
         """
-        local_node = local.node
         # Note reading from a container is not supported.
         sources = [
             source_prop_pair.source
-            for source_prop_pair in local_node.sources or []
+            for source_prop_pair in local.sources or []
             if isinstance(source_prop_pair.source, ViewId)
         ]
         try:
@@ -2724,7 +3101,7 @@ class NodeLoader(ResourceContainerLoader[NodeId, LoadedNode, Node, LoadedNodeLis
             # View does not exist, so node does not exist.
             return False
         cdf_resource_dumped = cdf_resource_with_properties.as_write().dump()
-        local_dumped = local_node.dump()
+        local_dumped = local.dump()
         if "existingVersion" not in local_dumped:
             # Existing version is typically not set when creating nodes, but we get it back
             # when we retrieve the node from the server.
@@ -2732,21 +3109,18 @@ class NodeLoader(ResourceContainerLoader[NodeId, LoadedNode, Node, LoadedNodeLis
 
         return local_dumped == cdf_resource_dumped
 
-    def load_resource(self, filepath: Path, ToolGlobals: CDFToolConfig, skip_validation: bool) -> LoadedNodeList:
+    def load_resource(self, filepath: Path, ToolGlobals: CDFToolConfig, skip_validation: bool) -> NodeApplyListWithCall:
         raw = load_yaml_inject_variables(filepath, ToolGlobals.environment_variables())
-        if isinstance(raw, dict):
-            loaded = LoadedNodeList._load(raw, cognite_client=self.client)
-        else:
-            raise ValueError(f"Unexpected node yaml file format {filepath.name}")
+        loaded = NodeApplyListWithCall._load(raw, cognite_client=self.client)
         if not skip_validation:
-            ToolGlobals.verify_spaces(list({item.node.space for item in loaded}))
+            ToolGlobals.verify_spaces(list({item.space for item in loaded}))
         return loaded
 
     def dump_resource(
-        self, resource: LoadedNode, source_file: Path, local_resource: LoadedNode
+        self, resource: NodeApply, source_file: Path, local_resource: NodeApply
     ) -> tuple[dict[str, Any], dict[Path, str]]:
-        resource_node = resource.node
-        local_node = local_resource.node
+        resource_node = resource
+        local_node = local_resource
         # Retrieve node again to get properties.
         view_ids = {source.source for source in local_node.sources or [] if isinstance(source.source, ViewId)}
         nodes = self.client.data_modeling.instances.retrieve(nodes=local_node.as_id(), sources=list(view_ids)).nodes
@@ -2766,26 +3140,18 @@ class NodeLoader(ResourceContainerLoader[NodeId, LoadedNode, Node, LoadedNodeLis
 
         return dumped, {}
 
-    def create(self, items: LoadedNodeList) -> NodeApplyResultList:
-        if not isinstance(items, LoadedNodeList):
+    def create(self, items: NodeApplyListWithCall) -> NodeApplyResultList:
+        if not isinstance(items, NodeApplyListWithCall):
             raise ValueError("Unexpected node format file format")
 
-        results = NodeApplyResultList([])
-        for api_call, item in itertools.groupby(sorted(items, key=lambda x: x.api_call), key=lambda x: x.api_call):
-            nodes = [node.node for node in item]
-            result = self.client.data_modeling.instances.apply(
-                nodes=nodes,
-                auto_create_direct_relations=api_call.auto_create_direct_relations,
-                skip_on_version_conflict=api_call.skip_on_version_conflict,
-                replace=api_call.replace,
-            )
-            results.extend(result.nodes)
-        return results
+        api_call_args = items.api_call.dump(camel_case=False) if items.api_call else {}
+        result = self.client.data_modeling.instances.apply(nodes=items, **api_call_args)
+        return result.nodes
 
     def retrieve(self, ids: SequenceNotStr[NodeId]) -> NodeList:
         return self.client.data_modeling.instances.retrieve(nodes=cast(Sequence, ids)).nodes
 
-    def update(self, items: LoadedNodeList) -> NodeApplyResultList:
+    def update(self, items: NodeApplyListWithCall) -> NodeApplyResultList:
         return self.create(items)
 
     def delete(self, ids: SequenceNotStr[NodeId]) -> int:
@@ -2807,45 +3173,43 @@ class NodeLoader(ResourceContainerLoader[NodeId, LoadedNode, Node, LoadedNodeLis
     @classmethod
     @lru_cache(maxsize=1)
     def get_write_cls_parameter_spec(cls) -> ParameterSpecSet:
-        spec = super().get_write_cls_parameter_spec()
-        # Modifications to match the spec
-        for item in spec:
-            if item.path[0] == "apiCall" and len(item.path) > 1:
-                # Move up one level
-                # The spec class is immutable, so we use this trick to modify it.
-                object.__setattr__(item, "path", item.path[1:])
-            elif item.path[0] == "node":
-                # Move into list
-                object.__setattr__(item, "path", ("nodes", ANY_INT, *item.path[1:]))
-        # Top level of nodes
-        spec.add(ParameterSpec(("nodes",), frozenset({"list"}), is_required=True, _is_nullable=False))
-        spec.add(
+        node_spec = super().get_write_cls_parameter_spec()
+        # This is a deviation between the SDK and the API
+        node_spec.add(ParameterSpec(("instanceType",), frozenset({"str"}), is_required=False, _is_nullable=False))
+        node_spec.add(
             ParameterSpec(
-                ("nodes", ANY_INT, "sources", ANY_INT, "source", "type"),
+                ("sources", ANY_INT, "source", "type"),
                 frozenset({"str"}),
                 is_required=True,
                 _is_nullable=False,
             )
         )
-        # Not used
-        spec.discard(ParameterSpec(("apiCall",), frozenset({"dict"}), is_required=True, _is_nullable=False))
-        return spec
+        return ParameterSpecSet(node_spec, spec_name=cls.__name__)
 
 
 @final
 class WorkflowLoader(ResourceLoader[str, WorkflowUpsert, Workflow, WorkflowUpsertList, WorkflowList]):
     folder_name = "workflows"
-    filename_pattern = r"^.*\.Workflow$"
+    filename_pattern = r"^.*Workflow$"
     resource_cls = Workflow
     resource_write_cls = WorkflowUpsert
     list_cls = WorkflowList
     list_write_cls = WorkflowUpsertList
-    dependencies = frozenset({GroupAllScopedLoader})
+    kind = "Workflow"
+    dependencies = frozenset(
+        {
+            GroupAllScopedLoader,
+            TransformationLoader,
+            FunctionLoader,
+        }
+    )
     _doc_base_url = "https://api-docs.cognite.com/20230101-beta/tag/"
     _doc_url = "Workflows/operation/CreateOrUpdateWorkflow"
 
     @classmethod
-    def get_required_capability(cls, items: WorkflowUpsertList) -> Capability:
+    def get_required_capability(cls, items: WorkflowUpsertList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return WorkflowOrchestrationAcl(
             [WorkflowOrchestrationAcl.Action.Read, WorkflowOrchestrationAcl.Action.Write],
             WorkflowOrchestrationAcl.Scope.All(),
@@ -2902,18 +3266,25 @@ class WorkflowVersionLoader(
     ]
 ):
     folder_name = "workflows"
-    filename_pattern = r"^.*\.?(WorkflowVersion)$"
+    filename_pattern = r"^.*WorkflowVersion$"
     resource_cls = WorkflowVersion
     resource_write_cls = WorkflowVersionUpsert
     list_cls = WorkflowVersionList
     list_write_cls = WorkflowVersionUpsertList
+    kind = "WorkflowVersion"
     dependencies = frozenset({WorkflowLoader})
 
     _doc_base_url = "https://api-docs.cognite.com/20230101-beta/tag/"
     _doc_url = "Workflow-versions/operation/CreateOrUpdateWorkflowVersion"
 
+    @property
+    def display_name(self) -> str:
+        return "workflow.versions"
+
     @classmethod
-    def get_required_capability(cls, items: WorkflowVersionUpsertList) -> Capability:
+    def get_required_capability(cls, items: WorkflowVersionUpsertList) -> Capability | list[Capability]:
+        if not items:
+            return []
         return WorkflowOrchestrationAcl(
             [WorkflowOrchestrationAcl.Action.Read, WorkflowOrchestrationAcl.Action.Write],
             WorkflowOrchestrationAcl.Scope.All(),

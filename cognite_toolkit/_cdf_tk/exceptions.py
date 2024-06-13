@@ -47,6 +47,10 @@ class ToolkitMissingModuleError(ToolkitError):
     pass
 
 
+class ToolkitMissingModulesError(ToolkitError):
+    pass
+
+
 class ToolkitDuplicatedResourceError(ToolkitError):
     pass
 
@@ -57,7 +61,7 @@ class ToolkitDuplicatedModuleError(ToolkitError):
         self.duplicated = duplicated
 
     def __str__(self) -> str:
-        from cognite_toolkit._cdf_tk.templates._constants import MODULE_PATH_SEP
+        from cognite_toolkit._cdf_tk.constants import MODULE_PATH_SEP
 
         lines = [super().__str__()]
         for module_name, paths in self.duplicated.items():
@@ -131,3 +135,33 @@ class ToolkitResourceMissingError(ToolkitError):
 
     def __str__(self) -> str:
         return f"{super().__str__()}\nResource {self.resource!r} is missing"
+
+
+class UploadFileError(ToolkitError):
+    pass
+
+
+class ResourceRetrievalError(ToolkitError): ...
+
+
+class ResourceCreationError(ToolkitError):
+    pass
+
+
+class ResourceDeleteError(ToolkitError): ...
+
+
+class ResourceUpdateError(ToolkitError):
+    pass
+
+
+class AmbiguousResourceFileError(ToolkitError):
+    pass
+
+
+class AuthenticationError(ToolkitError):
+    pass
+
+
+class AuthorizationError(ToolkitError):
+    pass
